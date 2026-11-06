@@ -1,0 +1,29 @@
+{
+  "actualizado": "2026-11-06",
+  "documentos": [
+    {
+      "archivo": "res_2254_2017_mads.html",
+      "titulo": "Resolución 2254 de 2017, MADS (norma de calidad del aire)",
+      "corto": "Res. 2254 de 2017",
+      "url": "https://normas.cra.gov.co/gestor/docs/resolucion_minambienteds_2254_2017.htm"
+    },
+    {
+      "archivo": "poeca_acuerdo_04_2018_amva.html",
+      "titulo": "POECA, Acuerdo Metropolitano 04 de 2018 (texto compilado, incluye las modificaciones del Acuerdo 7 de 2022)",
+      "corto": "POECA (Acuerdo Metropolitano 04 de 2018)",
+      "url": "http://alphasig.metropol.gov.co/normograma/compilacion/docs/a_amva_0004_2018.htm"
+    },
+    {
+      "archivo": "pigeca_acuerdo_16_2017_amva.html",
+      "titulo": "PIGECA, Acuerdo Metropolitano 16 de 2017",
+      "corto": "PIGECA (Acuerdo Metropolitano 16 de 2017)",
+      "url": "http://alphasig.metropol.gov.co/normograma/compilacion/docs/a_amva_0016_2017.htm"
+    },
+    {
+      "archivo": "siata_informe_operacion_2025_01.pdf",
+      "titulo": "Informe de operación Red de Calidad del Aire, enero 2025 (SIATA)",
+      "corto": "Informe SIATA enero 2025",
+      "url": "https://siata.gov.co/CalidadAire/Informe_Procuraduria/F-GAA-RA-82_InformeProcuraduria_Enero2025.pdf"
+    }
+  ]
+}

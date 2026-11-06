@@ -1,0 +1,8 @@
+# Sesión 1 (datos y EDA). Las sesiones siguientes agregan dependencias.
+pandas>=2.0
+numpy>=1.26
+requests>=2.31
+matplotlib>=3.8
+jupyter>=1.0
+pytest>=8.0
+pypdf>=5.0        # texto de los PDF del corpus (RAG)

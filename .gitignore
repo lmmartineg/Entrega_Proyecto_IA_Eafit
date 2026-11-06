@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.ipynb_checkpoints/
+# Datos crudos: se regeneran con `python -m src.data download`
+data/raw/
+# Serie horaria procesada (~50 MB): se regenera con `python -m src.data process`
+data/processed/pm25_horario.csv
