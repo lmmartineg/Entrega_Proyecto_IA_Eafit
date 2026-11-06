@@ -34,6 +34,26 @@ ICA_PM25: list[tuple[float, float, str, str]] = [
     (251, 500, "Peligrosa", "Marrón"),
 ]
 
+# Tabla 5 (Art. 19): rango del índice, color, estado y efectos (transcrito de la imagen obj_6.gif).
+EFECTOS_ICA: list[tuple[str, str, str, str]] = [
+    ("0-50", "Verde", "Buena", "La contaminación atmosférica supone un riesgo bajo para la salud."),
+    ("51-100", "Amarillo", "Aceptable", "Posibles síntomas respiratorios en grupos poblacionales sensibles."),
+    ("101-150", "Naranja", "Dañina a la salud de grupos sensibles",
+     "Los grupos poblacionales sensibles pueden presentar efectos sobre la salud. "
+     "1) Ozono troposférico: las personas con enfermedades pulmonares, niños, adultos mayores y las que "
+     "constantemente realizan actividad física al aire libre deben reducir su exposición a los "
+     "contaminantes del aire. 2) Material particulado: las personas con enfermedad cardiaca o pulmonar, "
+     "los adultos mayores y los niños se consideran sensibles y por lo tanto en mayor riesgo."),
+    ("151-200", "Rojo", "Dañina para la salud",
+     "Todos los individuos pueden comenzar a experimentar efectos sobre la salud. Los grupos sensibles "
+     "pueden experimentar efectos más graves para la salud."),
+    ("201-300", "Púrpura", "Muy dañina para la salud",
+     "Estado de alerta que significa que todos pueden experimentar efectos más graves para la salud."),
+    ("301-500", "Marrón", "Peligroso",
+     "Advertencia sanitaria. Toda la población puede presentar efectos adversos graves en la salud humana "
+     "y están propensos a verse afectados por graves efectos sobre la salud."),
+]
+
 # Tabla 4: (límite inferior, límite superior, nivel). Emergencia es ">= 151".
 NIVELES_PM25: list[tuple[float, float, str]] = [
     (38, 55, "Prevención"),

@@ -1,0 +1,31 @@
+[
+  {
+    "modo": "denso",
+    "k": 8,
+    "aciertos": 10,
+    "n": 12,
+    "mrr": 0.683,
+    "fallas": [
+      "¿Cuál es el límite máximo permisible de PM2.5 en 24 horas?",
+      "¿Cómo se calcula el índice de calidad del aire?"
+    ]
+  },
+  {
+    "modo": "bm25",
+    "k": 8,
+    "aciertos": 11,
+    "n": 12,
+    "mrr": 0.621,
+    "fallas": [
+      "¿Qué se considera un episodio de contaminación atmosférica?"
+    ]
+  },
+  {
+    "modo": "hibrido",
+    "k": 8,
+    "aciertos": 12,
+    "n": 12,
+    "mrr": 0.663,
+    "fallas": []
+  }
+]

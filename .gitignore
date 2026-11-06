@@ -7,3 +7,7 @@ __pycache__/
 data/raw/
 # Serie horaria procesada (~50 MB): se regenera con `python -m src.data process`
 data/processed/pm25_horario.csv
+# Configuración local de Claude Code
+.claude/
+# Modelos descargados (embeddings del RAG)
+.cache/

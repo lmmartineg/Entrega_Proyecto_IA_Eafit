@@ -1,0 +1,10 @@
+metodo,real,pred_Buena,pred_Aceptable,pred_Dañina para grupos sensibles o peor
+softmax,Buena,4342,1589,0
+softmax,Aceptable,2041,12302,273
+softmax,Dañina para grupos sensibles o peor,0,93,137
+persistencia,Buena,3919,2012,0
+persistencia,Aceptable,2012,12496,108
+persistencia,Dañina para grupos sensibles o peor,1,104,125
+mayoritaria,Buena,0,5931,0
+mayoritaria,Aceptable,0,14616,0
+mayoritaria,Dañina para grupos sensibles o peor,0,230,0

@@ -10,6 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA_RAW = ROOT / "data" / "raw"
 DATA_PROCESSED = ROOT / "data" / "processed"
 DATA_CORPUS = ROOT / "data" / "corpus"
+MODELS = ROOT / "models"
+INDEX = ROOT / "index"
+CACHE = ROOT / ".cache"          # modelos descargados (embeddings); ignorado en git
 
 # --- Fuente principal: Repositorio de Datos SIATA (Dataverse) ----------------
 # SIATA, 2026, "Material Particulado - PM2.5", https://doi.org/10.83041/AUWZWT, V5.

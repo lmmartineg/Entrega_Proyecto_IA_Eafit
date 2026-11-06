@@ -1,4 +1,4 @@
-# Sesión 1 (datos y EDA). Las sesiones siguientes agregan dependencias.
+# Sesiones 1-4 (datos, modelo, agente, dashboard y RAG).
 pandas>=2.0
 numpy>=1.26
 requests>=2.31
@@ -6,3 +6,9 @@ matplotlib>=3.8
 jupyter>=1.0
 pytest>=8.0
 pypdf>=5.0        # texto de los PDF del corpus (RAG)
+scikit-learn>=1.4 # solo para la prueba de cordura (python -m src.train --sklearn)
+openai>=1.40      # cliente de APIs compatibles con OpenAI (Groq, NVIDIA NIM, Ollama)
+python-dotenv>=1.0
+streamlit>=1.35
+faiss-cpu>=1.8     # índice vectorial del RAG
+fastembed>=0.4     # embeddings locales (ONNX, sin PyTorch)
