@@ -133,6 +133,37 @@ def test_indice_en_disco_y_busqueda(buscador, tmp_path):
         buscador.buscar("   ")
 
 
+def test_sin_modelo_de_embeddings_cae_a_bm25_y_avisa(tmp_path):
+    import pandas as pd
+    R.construir_indice(fragmentos_prueba(), EmbebedorSimulado(), tmp_path)
+    b = R.Buscador.cargar(tmp_path)        # sin embebedor: lo intentará cargar
+
+    class ModeloQueFalla:
+        def __init__(self, *a, **k):
+            raise OSError("ruta demasiado larga")
+
+    original = R.Embebedor
+    R.Embebedor = ModeloQueFalla
+    try:
+        r = b.buscar("restricción vehicular en nivel de alerta", k=2)
+    finally:
+        R.Embebedor = original
+    assert r[0]["ubicacion"] == "Art. 27" and r[0]["similitud"] is None   # solo BM25
+    assert "ruta demasiado larga" in b.sin_embeddings
+    d = pd.DataFrame({"estacion": ["MED-ARAN"], "fecha": [pd.Timestamp("2026-09-30")], "pm25": [20.0],
+                      "n_horas": [24], "valido": [True]})
+    salida = Herramientas(d, buscador=b).search_docs("alerta")
+    assert "BM25" in salida["aviso"] and salida["fragmentos"]
+
+
+def test_carpeta_de_modelos_corta(monkeypatch, tmp_path):
+    monkeypatch.setenv("EMBEDDINGS_CACHE", str(tmp_path / "x"))
+    assert R.carpeta_modelos() == tmp_path / "x"
+    monkeypatch.delenv("EMBEDDINGS_CACHE")
+    monkeypatch.setattr(R.cfg, "CACHE", tmp_path / ("ruta_larga_" * 15))
+    assert R.carpeta_modelos() == R.Path.home() / ".cache" / "si3003_fastembed"
+
+
 def test_herramienta_search_docs(buscador):
     import pandas as pd
     d = pd.DataFrame({"estacion": ["MED-ARAN"], "fecha": [pd.Timestamp("2026-09-30")], "pm25": [20.0],

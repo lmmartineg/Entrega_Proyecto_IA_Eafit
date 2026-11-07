@@ -1,0 +1,99 @@
+# Evaluación del agente (Sesión 6). 12 preguntas fijas.
+#
+# Campos:
+#   herramientas_esperadas: todas deben llamarse al menos una vez ([] = ninguna obligatoria).
+#   requiere_cita: la respuesta debe citar [documento, ubicación] de la normativa.
+#   verificar: comprobación contra los datos, calculada al correr la evaluación:
+#     {tipo: pm25, estacion, fecha}  -> la respuesta contiene el PM2.5 real (1 decimal, con punto o coma)
+#     {tipo: prediccion, estacion, fecha?} -> la respuesta nombra la clase que predice el modelo
+#   debe_contener: expresiones regulares (sin distinguir mayúsculas); todas deben aparecer.
+#
+# Estas preguntas son distintas de las 12 consultas usadas para ajustar el RAG
+# (src/rag.py, CONSULTAS_AJUSTE), para que la medición sea independiente.
+
+- id: P01
+  categoria: datos
+  pregunta: ¿Cuál fue el PM2.5 promedio en la estación MED-ARAN el 15 de marzo de 2020?
+  herramientas_esperadas: [get_pm25]
+  requiere_cita: false
+  verificar: {tipo: pm25, estacion: MED-ARAN, fecha: "2020-03-15"}
+
+- id: P02
+  categoria: datos
+  pregunta: ¿Cómo está el aire hoy en Itagüí, en la estación Casa de Justicia?
+  herramientas_esperadas: [get_pm25]
+  requiere_cita: false
+  verificar: {tipo: pm25, estacion: ITA-CJUS}
+  debe_contener: ["tiempo real|más reciente|último dato|últim[oa] (dato|registro|medición)"]
+
+- id: P03
+  categoria: datos
+  pregunta: ¿Se superó el límite diario de PM2.5 en CEN-TRAF el 6 de febrero de 2019?
+  herramientas_esperadas: [get_pm25]
+  requiere_cita: false
+  verificar: {tipo: pm25, estacion: CEN-TRAF, fecha: "2019-02-06"}
+  debe_contener: ["\\bs[ií]\\b|super[oó]|supera"]
+
+- id: P04
+  categoria: pronostico
+  pregunta: ¿Qué calidad del aire se espera mañana en Santa Elena?
+  herramientas_esperadas: [predict_tomorrow]
+  requiere_cita: false
+  verificar: {tipo: prediccion, estacion: MED-SELE}
+
+- id: P05
+  categoria: pronostico
+  pregunta: Según el modelo, ¿qué clase de PM2.5 se esperaba en MED-ARAN para el día siguiente al 14 de marzo de 2020?
+  herramientas_esperadas: [predict_tomorrow]
+  requiere_cita: false
+  verificar: {tipo: prediccion, estacion: MED-ARAN, fecha: "2020-03-14"}
+
+- id: P06
+  categoria: pronostico
+  pregunta: ¿Habrá mañana un día por encima de la norma en Bello, en la I.E. Fernando Vélez?
+  herramientas_esperadas: [predict_tomorrow]
+  requiere_cita: false
+  verificar: {tipo: prediccion, estacion: BEL-FEVE}
+
+- id: P07
+  categoria: normativa
+  pregunta: ¿Qué medidas se aplican cuando se declara el nivel de emergencia en el Valle de Aburrá?
+  herramientas_esperadas: [search_docs]
+  requiere_cita: true
+  debe_contener: ["emergencia"]
+
+- id: P08
+  categoria: normativa
+  pregunta: ¿A partir de qué concentración de PM2.5 en 24 horas se declara el nivel de prevención?
+  herramientas_esperadas: [search_docs]
+  requiere_cita: true
+  debe_contener: ["\\b38\\b"]
+
+- id: P09
+  categoria: normativa
+  pregunta: ¿Qué significa para la salud que el índice de calidad del aire esté en rojo?
+  herramientas_esperadas: [search_docs]
+  requiere_cita: true
+  debe_contener: ["todos|toda la población"]
+
+- id: P10
+  categoria: normativa
+  pregunta: Una vez declarado un nivel de prevención, alerta o emergencia, ¿durante cuánto tiempo mínimo se mantienen las medidas?
+  herramientas_esperadas: [search_docs]
+  requiere_cita: true
+  debe_contener: ["tres \\(3\\) días|tres días|3 días"]
+
+- id: P11
+  categoria: combinada
+  pregunta: El 15 de marzo de 2020, ¿la concentración en CEN-TRAF correspondía a algún nivel de episodio? ¿Qué dice la norma sobre ese nivel?
+  herramientas_esperadas: [get_pm25, search_docs]
+  requiere_cita: true
+  verificar: {tipo: pm25, estacion: CEN-TRAF, fecha: "2020-03-15"}
+  debe_contener: ["prevenci[oó]n"]
+
+- id: P12
+  categoria: fuera_del_corpus
+  pregunta: ¿Qué dice la normativa sobre los límites de ruido para motocicletas?
+  herramientas_esperadas: [search_docs]
+  requiere_cita: false
+  debe_contener: ["no encontr|no (se )?(menciona|incluye|contiene|aborda|aparece)|no hay información"]

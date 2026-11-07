@@ -224,13 +224,30 @@ def texto_para_embeber(f: dict) -> str:
 
 
 # --- Embeddings ---------------------------------------------------------------------
+def carpeta_modelos() -> Path:
+    """Dónde se guarda el modelo de embeddings.
+
+    En Windows las rutas de más de 260 caracteres fallan, y el modelo vive en
+    rutas largas (models--Qdrant--...--onnx-Q/snapshots/<hash>/...). Por eso, si el
+    proyecto está en una carpeta de ruta larga, se usa ~/.cache/si3003_fastembed.
+    Orden: variable EMBEDDINGS_CACHE > .cache/fastembed del proyecto si ya existe > ~/.cache.
+    """
+    import os
+    if os.getenv("EMBEDDINGS_CACHE"):
+        return Path(os.environ["EMBEDDINGS_CACHE"])
+    local = cfg.CACHE / "fastembed"
+    if local.exists() and len(str(local)) < 120:
+        return local
+    return Path.home() / ".cache" / "si3003_fastembed"
+
+
 class Embebedor:
     """Envuelve fastembed. Devuelve vectores float32 normalizados (norma 1)."""
 
     def __init__(self, modelo: str = MODELO_EMB):
         from fastembed import TextEmbedding
         self.modelo = modelo
-        self._m = TextEmbedding(modelo, cache_dir=str(cfg.CACHE / "fastembed"))
+        self._m = TextEmbedding(modelo, cache_dir=str(carpeta_modelos()))
 
     def __call__(self, textos: list[str]) -> np.ndarray:
         v = np.asarray(list(self._m.embed(textos)), dtype="float32")
@@ -336,6 +353,7 @@ class Buscador:
         self._embebedor = embebedor
         self.modelo = modelo
         self.bm25 = BM25([texto_para_embeber(f) for f in fragmentos])
+        self.sin_embeddings: str | None = None    # motivo, si el modelo no se pudo cargar
 
     @classmethod
     def cargar(cls, carpeta: Path | None = None, embebedor=None) -> "Buscador":
@@ -356,11 +374,21 @@ class Buscador:
 
     def buscar(self, consulta: str, k: int = K_DEFECTO, candidatos: int = 50,
                modo: str = "hibrido") -> list[dict]:
-        """modo: "hibrido" (embeddings + BM25 con RRF), "denso" o "bm25"."""
+        """modo: "hibrido" (embeddings + BM25 con RRF), "denso" o "bm25".
+        Si el modelo de embeddings no se puede cargar (sin internet, ruta demasiado
+        larga en Windows...), "hibrido" sigue funcionando solo con BM25 y deja el
+        motivo en `self.sin_embeddings`."""
         if not consulta or not consulta.strip():
             raise ValueError("La consulta está vacía.")
         n = min(candidatos, len(self.fragmentos))
         rankings, similitud = [], {}
+        if modo == "hibrido" and self._embebedor is None and self.sin_embeddings is None:
+            try:
+                self.embebedor
+            except Exception as e:  # noqa: BLE001 - cualquier falla de carga cae a BM25
+                self.sin_embeddings = f"{e.__class__.__name__}: {str(e)[:200]}"
+        if modo == "hibrido" and self.sin_embeddings:
+            modo = "bm25"
         if modo in ("hibrido", "denso"):
             sim, ids = self.indice.search(self.embebedor([consulta]), n)
             rankings.append([int(i) for i in ids[0] if i >= 0])

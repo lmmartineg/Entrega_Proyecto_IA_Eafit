@@ -158,6 +158,34 @@ def test_instruccion_sistema_menciona_limite_de_datos(herr):
     assert "2026-09-29" in s and "MED-ARAN" in s and "no es consejo médico" in s
 
 
+def test_limpiar_respuesta_normaliza_citas_lenticulares():
+    # Casos reales de gpt-oss en la evaluación v2 (P09, P10, P06).
+    t = "efectos graves【Res. 2254 de 2017, Tablas 4-6 (transcripción del proyecto), Tabla 5】."
+    assert A.limpiar_respuesta(t) == "efectos graves[Res. 2254 de 2017, Tablas 4-6 (transcripción del proyecto), Tabla 5]."
+    t = 'límite diario【cita: "[Res. 2254 de 2017, Tablas 4-6 (transcripción del proyecto), Tabla 6]"}】.'
+    assert A.limpiar_respuesta(t) == "límite diario[Res. 2254 de 2017, Tablas 4-6 (transcripción del proyecto), Tabla 6]."
+    assert A.limpiar_respuesta("es **Buena** 【...predicted data...】.") == "es **Buena**."
+    # Casos de la evaluación v3: espacio de ancho cero y espacio duro antes de ":".
+    assert A.limpiar_respuesta("38 a 55​[Res. 2254 de 2017, Art. 10]​.") == "38 a 55[Res. 2254 de 2017, Art. 10]."
+    assert A.limpiar_respuesta("las siguientes medidas :") == "las siguientes medidas:"
+    assert A.limpiar_respuesta("Sin marcas [POECA (Acuerdo Metropolitano 04 de 2018), Art. 17], fin.") == \
+        "Sin marcas [POECA (Acuerdo Metropolitano 04 de 2018), Art. 17], fin."
+
+
+def test_espera_sugerida_respeta_lo_que_pide_la_api():
+    class Resp:
+        headers = {"retry-after": "7"}
+
+    class ErrConEncabezado(Exception):
+        response = Resp()
+
+    assert L.espera_sugerida(ErrConEncabezado("x"), 0) == pytest.approx(7.5)
+    msg = Exception("Rate limit reached ... Please try again in 10.42s. Need more tokens?")
+    assert L.espera_sugerida(msg, 0) == pytest.approx(10.92)
+    assert L.espera_sugerida(Exception("sin pista"), 2) == pytest.approx(8.5)
+    assert L.espera_sugerida(Exception("try again in 120s"), 0) == L.ESPERA_MAXIMA
+
+
 def test_cliente_sin_clave_da_error_claro(monkeypatch):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.setattr(L, "cargar_entorno", lambda: None)

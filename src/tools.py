@@ -24,8 +24,8 @@ from src.model import RegresionSoftmax
 FUENTE_DATOS = ('SIATA, 2026, "Material Particulado - PM2.5", https://doi.org/10.83041/AUWZWT '
                 "(promedio diario calculado por este proyecto)")
 
-# Prefijo del código de estación -> municipio. Inferido de los 10 municipios del
-# Valle de Aburrá; CEN y SUR no corresponden a un municipio y quedan sin asignar.
+# Prefijo del código -> municipio. Solo es el respaldo cuando no hay metadatos
+# oficiales (data/processed/estaciones.csv, del dataset doi:10.83041/XTI3FH).
 MUNICIPIOS = {"BAR": "Barbosa", "GIR": "Girardota", "COP": "Copacabana", "BEL": "Bello",
               "MED": "Medellín", "ITA": "Itagüí", "ENV": "Envigado", "SAB": "Sabaneta",
               "EST": "La Estrella", "CAL": "Caldas"}
@@ -36,6 +36,12 @@ class ErrorHerramienta(ValueError):
     """Error causado por los argumentos; el mensaje se le muestra al agente."""
 
 
+def es_error_herramienta(e: BaseException) -> bool:
+    """True si `e` es un ErrorHerramienta. También compara por nombre de clase porque la
+    recarga en caliente de Streamlit puede dejar dos versiones de la clase en memoria."""
+    return isinstance(e, ErrorHerramienta) or type(e).__name__ == "ErrorHerramienta"
+
+
 def _norm(texto: str) -> str:
     t = unicodedata.normalize("NFKD", str(texto)).encode("ascii", "ignore").decode()
     return t.upper().strip()
@@ -44,7 +50,7 @@ def _norm(texto: str) -> str:
 class Herramientas:
     def __init__(self, diario: pd.DataFrame, modelo: RegresionSoftmax | None = None,
                  meta_modelo: dict | None = None, resumen_modelo: dict | None = None,
-                 buscador=None):
+                 buscador=None, meta_estaciones: pd.DataFrame | None = None):
         self.buscador = buscador          # src.rag.Buscador (None si no hay índice)
         self.diario = diario.copy()
         self.diario["fecha"] = pd.to_datetime(self.diario["fecha"])
@@ -54,6 +60,12 @@ class Herramientas:
         self.codigos = sorted(self.diario["estacion"].unique())
         self.fecha_max = self.diario["fecha"].max()
         self._dataset = None
+        # Metadatos oficiales (SIATA, doi:10.83041/XTI3FH): nombre, municipio, zona, coordenadas.
+        self.meta: dict[str, dict] = {}
+        if meta_estaciones is not None and "latitud" in meta_estaciones.columns:
+            for r in meta_estaciones.to_dict("records"):
+                self.meta[r["estacion"]] = {k: (None if pd.isna(r.get(k)) else r.get(k))
+                                            for k in ("nombre", "municipio", "zona", "latitud", "longitud")}
 
     @classmethod
     def desde_disco(cls) -> "Herramientas":
@@ -77,27 +89,46 @@ class Herramientas:
         if (cfg.INDEX / "normativa.faiss").exists():
             from src.rag import Buscador
             buscador = Buscador.cargar()
-        return cls(diario, modelo, meta, resumen, buscador)
+        ruta_e = cfg.DATA_PROCESSED / "estaciones.csv"
+        meta_est = pd.read_csv(ruta_e) if ruta_e.exists() else None
+        return cls(diario, modelo, meta, resumen, buscador, meta_est)
 
     # --- estaciones ------------------------------------------------------------
+    def municipio(self, cod: str) -> str | None:
+        return (self.meta.get(cod) or {}).get("municipio") or MUNICIPIOS.get(cod.split("-")[0])
+
+    def ficha(self, cod: str) -> dict:
+        """Nombre, municipio y zona de una estación para incluir en las respuestas."""
+        m = self.meta.get(cod) or {}
+        out = {"estacion": cod, "municipio": self.municipio(cod)}
+        if m.get("nombre"):
+            out["nombre_estacion"] = m["nombre"]
+        if m.get("zona"):
+            out["zona"] = m["zona"]
+        return out
+
     def estaciones(self) -> list[dict]:
         g = self.diario[self.diario["valido"]].groupby("estacion")["fecha"].agg(["min", "max"])
         limite_activa = self.fecha_max - pd.Timedelta(days=30)
-        return [{"codigo": c, "municipio": MUNICIPIOS.get(c.split("-")[0]),
-                 "desde": g.loc[c, "min"].date().isoformat(), "hasta": g.loc[c, "max"].date().isoformat(),
-                 "activa": bool(g.loc[c, "max"] >= limite_activa)}
-                for c in g.index]
+        out = []
+        for c in g.index:
+            m = self.meta.get(c) or {}
+            out.append({"codigo": c, "municipio": self.municipio(c), "nombre": m.get("nombre"),
+                        "zona": m.get("zona"), "latitud": m.get("latitud"), "longitud": m.get("longitud"),
+                        "desde": g.loc[c, "min"].date().isoformat(), "hasta": g.loc[c, "max"].date().isoformat(),
+                        "activa": bool(g.loc[c, "max"] >= limite_activa)})
+        return out
 
     def vecinas_activas(self, cod: str) -> list[str]:
-        """Otras estaciones activas del mismo municipio (mismo prefijo de código)."""
-        pref = cod.split("-")[0]
-        if pref not in MUNICIPIOS:
+        """Otras estaciones activas del mismo municipio."""
+        muni = self.municipio(cod)
+        if not muni:
             return []
         return [e["codigo"] for e in self.estaciones()
-                if e["activa"] and e["codigo"] != cod and e["codigo"].startswith(pref + "-")]
+                if e["activa"] and e["codigo"] != cod and e["municipio"] == muni]
 
     def resolver_estacion(self, texto: str) -> str:
-        """Código exacto, código sin guion, municipio o fragmento del código."""
+        """Código exacto, código sin guion, zona/barrio, nombre, municipio o fragmento del código."""
         if not texto or not str(texto).strip():
             raise ErrorHerramienta("Falta la estación. Códigos disponibles: " + ", ".join(self.codigos))
         q = _norm(texto)
@@ -107,10 +138,21 @@ class Herramientas:
         sin_guion = {c.replace("-", ""): c for c in self.codigos}
         if q.replace(" ", "").replace("-", "") in sin_guion:
             return sin_guion[q.replace(" ", "").replace("-", "")]
-        candidatos = set()
-        for pref, muni in MUNICIPIOS.items():
+        # 1) Zona/barrio o nombre oficial: lo más específico.
+        especificos = set()
+        for c in self.codigos:
+            m = self.meta.get(c) or {}
+            zona, nombre = _norm(m.get("zona") or ""), _norm(m.get("nombre") or "")
+            if (zona and zona in q) or (len(q) >= 5 and nombre and (q in nombre or nombre in q)):
+                especificos.add(c)
+        if len(especificos) == 1:
+            return especificos.pop()
+        # 2) Municipio y fragmentos del código.
+        candidatos = set(especificos)
+        municipios = {self.municipio(c) for c in self.codigos} | set(MUNICIPIOS.values())
+        for muni in filter(None, municipios):
             if _norm(muni) in q:
-                candidatos |= {c for c in self.codigos if c.startswith(pref + "-")}
+                candidatos |= {c for c in self.codigos if self.municipio(c) == muni}
         tokens = [t for t in q.replace("-", " ").split() if len(t) >= 3]
         for c in self.codigos:
             sitio = c.split("-", 1)[1]
@@ -152,7 +194,7 @@ class Herramientas:
         valor = float(fila["pm25"])
         cat = ica.categoria(valor)
         out = {
-            "estacion": cod, "municipio": MUNICIPIOS.get(cod.split("-")[0]),
+            **self.ficha(cod),
             "fecha": f.date().isoformat(),
             "pm25_promedio_diario_ug_m3": round(valor, 1),
             "horas_con_dato": int(fila["n_horas"]), "dia_valido": bool(fila["valido"]),
@@ -200,7 +242,7 @@ class Herramientas:
         proba = self.modelo.predict_proba(fila[F.COLUMNAS_X].to_numpy(float)[None, :])[0]
         k = int(proba.argmax())
         out = {
-            "estacion": cod, "municipio": MUNICIPIOS.get(cod.split("-")[0]),
+            **self.ficha(cod),
             "datos_hasta": fila["fecha_base"].date().isoformat(),
             "fecha_predicha": fila["fecha_objetivo"].date().isoformat(),
             "clase_predicha": F.CLASES[k],
@@ -234,13 +276,18 @@ class Herramientas:
         if not consulta or not str(consulta).strip():
             raise ErrorHerramienta("La consulta está vacía.")
         frags = self.buscador.buscar(str(consulta))
-        return {
+        out = {
             "consulta": consulta,
             "fragmentos": [{k: f[k] for k in ("cita", "documento", "ubicacion", "titulo", "texto")}
                            for f in frags],
             "instruccion": ("Responde solo con lo que digan estos fragmentos y cita cada afirmación con su "
                             "campo 'cita'. Si no responden la pregunta, dilo explícitamente."),
         }
+        motivo = getattr(self.buscador, "sin_embeddings", None)
+        if motivo:
+            out["aviso"] = ("Búsqueda solo por palabras clave (BM25): no se pudo cargar el modelo de "
+                            f"embeddings ({motivo}). Los resultados pueden ser menos precisos.")
+        return out
 
     # --- despacho ------------------------------------------------------------------
     ARGUMENTOS = {"get_pm25": {"estacion", "fecha"}, "predict_tomorrow": {"estacion", "fecha"},

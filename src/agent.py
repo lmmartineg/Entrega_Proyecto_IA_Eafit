@@ -13,28 +13,57 @@ Uso rápido desde la terminal:
 from __future__ import annotations
 
 import json
+import re
 import sys
 from dataclasses import dataclass, field
 from datetime import date
 
 from src import llm as L
-from src.tools import ESQUEMAS, ErrorHerramienta, Herramientas
+from src.tools import ESQUEMAS, ErrorHerramienta, Herramientas, es_error_herramienta  # noqa: F401
 
 T_MAX = 5
 
+# Algunos modelos (p. ej. gpt-oss) citan con corchetes lenticulares 【...】 y a veces dejan
+# marcas internas como 【...predicted data...】. Se normaliza para que el usuario vea
+# siempre [documento, ubicación] y el evaluador pueda reconocer las citas.
+RE_LENTICULAR = re.compile(r"【([^】]*)】")
+RE_DOC = re.compile(r"Res\.\s*2254|POECA|PIGECA|Informe SIATA")
 
-def instruccion_sistema(h: Herramientas, estacion_ui: str | None = None) -> str:
+
+def _citar(m: re.Match) -> str:
+    dentro = m.group(1)
+    interna = re.search(r"\[([^\[\]]+)\]", dentro)
+    if interna and RE_DOC.search(interna.group(1)):
+        return f"[{interna.group(1).strip()}]"
+    if RE_DOC.search(dentro):
+        limpio = dentro.strip().strip('"').strip()
+        return f"[{limpio}]"
+    return ""          # marca interna del modelo, no es una cita de documento
+
+
+def limpiar_respuesta(texto: str) -> str:
+    t = RE_LENTICULAR.sub(_citar, texto or "").replace("​", "")   # espacios de ancho cero
+    return re.sub(r"[ \t  ]+([.,;:])", r"\1", t)   # espacio (también duro) antes de la puntuación
+
+
+def instruccion_sistema(h: Herramientas, estacion_ui: str | None = None,
+                        fecha_ui: str | None = None) -> str:
     grupos: dict[str, list[str]] = {}
     for e in h.estaciones():
-        etiqueta = e["codigo"] + ("" if e["activa"] else f" [sin datos desde {e['hasta']}]")
+        detalle = ", ".join(x for x in (e.get("nombre"), e.get("zona")) if x)
+        etiqueta = (e["codigo"] + (f" ({detalle})" if detalle else "")
+                    + ("" if e["activa"] else f" [sin datos desde {e['hasta']}]"))
         grupos.setdefault(e["municipio"] or "Sin municipio asignado", []).append(etiqueta)
     est = "; ".join(f"{m}: {', '.join(c)}" for m, c in grupos.items())
     extra = f"\nEl usuario tiene seleccionada la estación {estacion_ui} en el panel." if estacion_ui else ""
+    if fecha_ui:
+        extra += (f" Está viendo la fecha {fecha_ui}; úsala si pregunta por 'ese día' o no da fecha "
+                  "(si dice 'hoy', usa el dato más reciente).")
     return f"""Eres un asistente de calidad del aire del Valle de Aburrá (Colombia). Respondes en español, de forma breve y clara.
 
 Reglas:
 - Para datos medidos de PM2.5 usa la herramienta get_pm25. Para el pronóstico del día siguiente usa predict_tomorrow. No inventes cifras: toda cifra debe salir de una herramienta.
-- Para preguntas sobre normas, niveles de prevención/alerta/emergencia, medidas, protocolos, el ICA o efectos en la salud usa search_docs. Responde SOLO con lo que digan los fragmentos y cita cada afirmación al final de la frase con el campo "cita" exacto, por ejemplo [POECA (Acuerdo Metropolitano 04 de 2018), Art. 27]. No cites documentos que no aparezcan en los fragmentos.
+- Para preguntas sobre normas, niveles de prevención/alerta/emergencia, medidas, protocolos, el ICA o efectos en la salud usa search_docs. Responde SOLO con lo que digan los fragmentos y cita cada afirmación al final de la frase con el campo "cita" exacto, entre corchetes normales [ ], por ejemplo [POECA (Acuerdo Metropolitano 04 de 2018), Art. 27]. No uses 【 】 ni otras marcas de cita. No cites documentos que no aparezcan en los fragmentos.
 - La "cita" indica a qué parte pertenece cada fragmento (por ejemplo "Art. 27, nivel de alerta" frente a "Art. 27, nivel de emergencia"). Si preguntan por un nivel, usa solo fragmentos de ese nivel o de las medidas comunes, y no mezcles medidas de niveles distintos.
 - Si los fragmentos no bastan, haz otra búsqueda con otras palabras (por ejemplo "medidas", "restricción", "declaratoria"). Si tras buscar no encuentras la respuesta, dilo explícitamente: "No encontré esto en los documentos consultados".
 - Fecha de hoy: {date.today().isoformat()}. Los datos disponibles llegan hasta {h.fecha_max.date().isoformat()}; no hay datos en tiempo real. Si preguntan por "hoy", consulta sin fecha y explica qué fecha muestras.
@@ -75,18 +104,19 @@ def ejecutar_herramienta(h: Herramientas, nombre: str, argumentos_json: str, ite
         return Paso(iteracion, nombre, argumentos_json, error=f"Argumentos inválidos ({e}).")
     try:
         return Paso(iteracion, nombre, args, resultado=h.ejecutar(nombre, args))
-    except ErrorHerramienta as e:
-        return Paso(iteracion, nombre, args, error=str(e))
-    except Exception as e:  # falla inesperada: se informa, no se cae el agente
+    except Exception as e:  # nunca se cae el agente
+        if es_error_herramienta(e):
+            return Paso(iteracion, nombre, args, error=str(e))
         return Paso(iteracion, nombre, args, error=f"Error interno en {nombre}: {e.__class__.__name__}: {e}")
 
 
 def responder(pregunta: str, herramientas: Herramientas, cliente=None,
               historial: list[dict] | None = None, estacion_ui: str | None = None,
+              fecha_ui: str | None = None,
               t_max: int = T_MAX) -> RespuestaAgente:
     """`historial`: turnos previos [{"role": "user"|"assistant", "content": ...}]."""
     cliente = cliente or L.ClienteLLM()
-    mensajes = [{"role": "system", "content": instruccion_sistema(herramientas, estacion_ui)}]
+    mensajes = [{"role": "system", "content": instruccion_sistema(herramientas, estacion_ui, fecha_ui)}]
     mensajes += list(historial or [])
     mensajes.append({"role": "user", "content": pregunta})
     pasos: list[Paso] = []
@@ -97,7 +127,7 @@ def responder(pregunta: str, herramientas: Herramientas, cliente=None,
         except L.ErrorLLM as e:
             return RespuestaAgente(f"No pude contactar el modelo de lenguaje: {e}", pasos, it, error_llm=str(e))
         if not m.llamadas:
-            return RespuestaAgente(m.contenido or "", pasos, it)
+            return RespuestaAgente(limpiar_respuesta(m.contenido or ""), pasos, it)
         mensajes.append(L.mensaje_asistente(m))
         for c in m.llamadas:
             paso = ejecutar_herramienta(herramientas, c.nombre, c.argumentos, it)
@@ -111,7 +141,7 @@ def responder(pregunta: str, herramientas: Herramientas, cliente=None,
         "si no alcanza, dilo.")})
     try:
         m = cliente.chat(mensajes, None)
-        texto = m.contenido or ""
+        texto = limpiar_respuesta(m.contenido or "")
     except L.ErrorLLM as e:
         return RespuestaAgente(f"No pude contactar el modelo de lenguaje: {e}", pasos, t_max,
                                agoto_t_max=True, error_llm=str(e))

@@ -33,6 +33,11 @@ from src import config as cfg  # noqa: E402
 SERVER = "https://datos.siata.gov.co"
 DOI = "doi:10.83041/AUWZWT"
 DESTINO = cfg.DATA_RAW / "siata_pm25"
+# Metadatos de la red (nombre, coordenadas y municipio de cada estación):
+# SIATA, "Información de la Red de Calidad del Aire", https://doi.org/10.83041/XTI3FH
+DOI_RED = "doi:10.83041/XTI3FH"
+DESTINO_RED = cfg.DATA_RAW / "siata_red"
+ARCHIVOS_RED = ("Estaciones_calidad_aire.tab", "Fechas_monitoreo_calidad_aire.tab")
 HEADERS = {"User-Agent": "si3003-calidad-aire/0.1 (proyecto academico)"}
 PATRON = re.compile(r"_(\d{4})_(\d{2})\.tab$", re.IGNORECASE)
 
@@ -114,6 +119,25 @@ def descargar(elegidos: list[dict]) -> None:
         print("Si los fallos son 401/403, el dataset pide aceptar condiciones: descárgalos desde la web.")
 
 
+def descargar_red() -> None:
+    """Baja los metadatos de las estaciones (archivos pequeños) a data/raw/siata_red/."""
+    r = requests.get(f"{SERVER}/api/datasets/:persistentId/", params={"persistentId": DOI_RED},
+                     headers=HEADERS, timeout=60)
+    r.raise_for_status()
+    ids = {f["dataFile"]["filename"]: f["dataFile"]["id"] for f in r.json()["data"]["latestVersion"]["files"]}
+    DESTINO_RED.mkdir(parents=True, exist_ok=True)
+    for nombre in ARCHIVOS_RED:
+        if nombre not in ids:
+            print(f"[falta en el dataset] {nombre}")
+            continue
+        a = requests.get(f"{SERVER}/api/access/datafile/{ids[nombre]}", headers=HEADERS, timeout=60)
+        if a.status_code == 200:
+            (DESTINO_RED / nombre).write_bytes(a.content)
+            print(f"[ok] {nombre} ({len(a.content)} B)")
+        else:
+            print(f"[falló {a.status_code}] {nombre}")
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--listar", action="store_true", help="solo listar archivos")
@@ -135,6 +159,9 @@ def main() -> None:
     elegidos = filtrar(archivos, a.desde, a.hasta)
     print(f"{len(elegidos)} archivos mensuales entre {a.desde} y {a.hasta}")
     descargar(elegidos)
+    print("
+Metadatos de las estaciones:")
+    descargar_red()
 
 
 if __name__ == "__main__":

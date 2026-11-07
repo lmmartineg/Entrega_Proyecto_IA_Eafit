@@ -268,12 +268,39 @@ def reporte_unidades(horario: pd.DataFrame,
     return r
 
 
-def tabla_estaciones(horario: pd.DataFrame) -> pd.DataFrame:
+RUTA_META_ESTACIONES = cfg.DATA_RAW / "siata_red" / "Estaciones_calidad_aire.tab"
+
+
+def leer_metadatos_estaciones(ruta: Path = RUTA_META_ESTACIONES) -> pd.DataFrame | None:
+    """Nombre, coordenadas y municipio oficiales (SIATA, doi:10.83041/XTI3FH).
+    "Medellin - Belén" se separa en municipio "Medellín" y zona "Belén"."""
+    if not Path(ruta).exists():
+        return None
+    m = pd.read_csv(ruta, sep="	")
+    muni = m["Municipio"].astype(str).str.strip().str.replace("Medellin", "Medellín", regex=False)
+    partes = muni.str.split(" - ", n=1, expand=True)
+    return pd.DataFrame({
+        "estacion": m["Nombre_Corto_Estacion"].astype(str).str.strip(),
+        "nombre": m["Nombre_Completo_Estacion"].astype(str).str.strip(),
+        "latitud": pd.to_numeric(m["Latitud"], errors="coerce"),
+        "longitud": pd.to_numeric(m["Longitud"], errors="coerce"),
+        "municipio": partes[0].str.strip(),
+        "zona": partes[1].str.strip() if partes.shape[1] > 1 else None,
+    })
+
+
+def tabla_estaciones(horario: pd.DataFrame, meta: pd.DataFrame | None = None) -> pd.DataFrame:
     cols = [c for c in ("latitud", "longitud", "municipio") if c in horario.columns]
     g = horario.groupby("estacion")
     t = g["fecha"].agg(desde="min", hasta="max").reset_index()
     if cols:
         t = t.merge(g[cols].first().reset_index(), on="estacion")
+    if meta is not None:
+        t = t.drop(columns=[c for c in ("latitud", "longitud", "municipio") if c in t.columns])
+        t = t.merge(meta, on="estacion", how="left")
+        faltan = t.loc[t["latitud"].isna(), "estacion"].tolist()
+        if faltan:
+            print(f"Aviso: sin coordenadas oficiales para {faltan}")
     return t
 
 
@@ -290,7 +317,7 @@ def process(ruta_raw: Path | None = None) -> None:
         horario = limpiar_horario(pd.read_csv(ruta_raw, low_memory=False))
     diario = promedio_diario(horario)
     unidades = reporte_unidades(horario)
-    estaciones = tabla_estaciones(horario)
+    estaciones = tabla_estaciones(horario, leer_metadatos_estaciones())
 
     cfg.DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
     horario.to_csv(cfg.DATA_PROCESSED / "pm25_horario.csv", index=False)

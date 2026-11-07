@@ -1,18 +1,94 @@
 # Agente de calidad del aire del Valle de Aburrá
 
 Proyecto final de SI3003 Inteligencia Artificial (EAFIT, 2026), idea 3.1 del enunciado.
-Este README crece con cada sesión; por ahora cubre las Sesiones 1 (datos y EDA), 2 (clasificador de la Parte 1), 3 (agente y dashboard) y 4 (RAG).
 
-## Instalación
+Predice la categoría de PM2.5 del día siguiente en las estaciones del SIATA con un clasificador implementado desde cero (Parte 1), y lo combina con un agente LLM que consulta los datos, el modelo y la normativa (Res. 2254 de 2017, POECA, PIGECA) citando sus fuentes (Parte 2). Todo se usa desde un dashboard en Streamlit.
+
+> **Herramienta analítica con fines académicos; no es consejo médico.** Los datos llegan hasta el 30 sep 2026: no hay datos en tiempo real.
+
+| Entregable | Dónde |
+| --- | --- |
+| Código y app | este repositorio (`app.py`, `src/`) |
+| Informe (máx. 4 páginas) | `informe.pdf` (fuente: `docs/informe.md`; se regenera con `python scripts/generar_informe.py`) |
+| Evaluación del agente | `eval/` (preguntas, script y resultados) |
+| Declaración de uso de IA generativa | `DECLARACION_IA.md` |
+| Guion del video de respaldo | `docs/guion_video.md` |
+
+## Inicio rápido (usar la app)
+
+El repositorio ya trae los datos procesados, el modelo entrenado y el índice del RAG: no hace falta descargar ni entrenar nada.
+
+Requisitos: Python 3.11 o superior, conexión a internet (para el LLM, el mapa base y, la primera vez, el modelo de embeddings de ~0,22 GB) y una clave gratuita de [Groq](https://console.groq.com/keys).
 
 ```bash
+git clone https://github.com/lmmartineg/Entrega_Proyecto_IA_Eafit.git
+cd Entrega_Proyecto_IA_Eafit
 python -m venv .venv
-source .venv/bin/activate        # Windows (PowerShell): .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-pytest -q                        # 49 pruebas (datos, ICA, modelo, agente y RAG, sin red)
 ```
 
-En Windows, si `python` abre la Microsoft Store, crea el entorno con la ruta completa de tu Python (por ejemplo `C:\Users\<usuario>\miniconda3\python.exe -m venv .venv`). Una vez activado el entorno, `python` funciona normal.
+Activa el entorno (Windows PowerShell: `.venv\Scripts\Activate.ps1`; Linux/macOS: `source .venv/bin/activate`) e instala:
+
+```bash
+pip install -r requirements.txt
+```
+
+Crea `.env` a partir de la plantilla y pega tu clave en `GROQ_API_KEY=` (Windows: `copy .env.example .env`):
+
+```bash
+cp .env.example .env
+```
+
+Comprueba la conexión con el LLM (no muestra la clave) y abre el dashboard:
+
+```bash
+python -m src.llm
+```
+
+```bash
+streamlit run app.py
+```
+
+En Windows:
+
+- Si `python` abre la Microsoft Store, crea el entorno con la ruta completa de tu Python (por ejemplo `C:\Users\<usuario>\miniconda3\python.exe -m venv .venv`).
+- Windows limita las rutas a 260 caracteres. Clona el repositorio en una carpeta de ruta corta (por ejemplo `C:\proyectos`) o [habilita las rutas largas](https://pip.pypa.io/warnings/enable-long-paths). El modelo de embeddings se guarda en `~/.cache/si3003_fastembed` (o en la carpeta de la variable `EMBEDDINGS_CACHE`). Si no se puede descargar, la búsqueda en la normativa sigue funcionando solo con BM25 y el agente lo avisa.
+
+Pruebas (65, sin red; el LLM y los embeddings se simulan):
+
+```bash
+pytest -q
+```
+
+## Reproducir todo desde cero
+
+Cada paso regenera lo que ya viene en el repositorio. Duraciones aproximadas en un portátil.
+
+| Paso | Comando | Produce |
+| --- | --- | --- |
+| 1. Datos SIATA (~1 min) | `python scripts/download_siata.py --desde 2019 --hasta 2026` | `data/raw/` (93 archivos mensuales y metadatos de estaciones) |
+| 2. Limpieza y promedio diario | `python -m src.data process` | `data/processed/` |
+| 3. Corpus del RAG | `python scripts/download_corpus.py` | `data/corpus/` |
+| 4. Modelo (~1 min) | `python -m src.train --sklearn` | `models/` (métricas, bootstrap y prueba de cordura) |
+| 5. Índice del RAG (~30 s) | `python -m src.rag construir` | `index/` |
+| 6. Evaluación de recuperación | `python -m src.rag evaluar` | `index/evaluacion_recuperacion.json` |
+| 7. Evaluación del agente (~5 min) | `python eval/run_eval.py --pausa 20` | `eval/resultados.csv`, `eval/resumen.json` |
+
+El EDA está en `notebooks/01_eda.ipynb`. Necesita el paso 2 y Jupyter, que no está en `requirements.txt` porque la app no lo usa: `pip install jupyter`.
+
+## Resultados principales
+
+| Componente | Resultado |
+| --- | --- |
+| Datos | 30 estaciones, 2019-01 a 2026-09; 58.249 estación-día con etiqueta |
+| Clasificador (prueba 2024-01 a 2026-09) | Exactitud 0,808 y F1 macro 0,665. Supera a la clase mayoritaria (F1 0,275) y a la persistencia en exactitud (0,796); en F1 macro empata con la persistencia (0,685; diferencia −0,021, IC 95 % [−0,055; +0,010]) |
+| Recuperación del RAG | 12/12 consultas con la cita esperada entre las 8 primeras (búsqueda híbrida; optimista, ver Sesión 4) |
+| Agente (12 preguntas, Groq `openai/gpt-oss-120b`) | 100 % herramienta correcta, 100 % con cita, 100 % de citas válidas, 100 % contenido verificado |
+
+Las limitaciones de cada resultado están en el detalle de abajo y en el informe.
+
+---
+
+# Detalle por sesión
 
 ## Sesión 1: obtener los datos
 
@@ -24,7 +100,7 @@ Dataset: SIATA, 2026, "Material Particulado - PM2.5", [https://doi.org/10.83041/
 
 ```bash
 python scripts/download_siata.py --listar                  # ver qué archivos hay
-python scripts/download_siata.py --desde 2019 --hasta 2026 # bajar a data/raw/siata_pm25/
+python scripts/download_siata.py --desde 2019 --hasta 2026 # bajar a data/raw/ (PM2.5 y metadatos de estaciones)
 ```
 
 Si la API falla (por ejemplo, porque el dataset pide aceptar condiciones), descarga los `.tab` desde la web y ponlos en `data/raw/siata_pm25/`.
@@ -285,6 +361,99 @@ Estas 12 consultas se usaron para ajustar la búsqueda (BM25, la regla del mejor
 
 **Limitaciones:** el PIGECA en HTML tiene pocos encabezados, así que algunas citas son de sección amplia (`Secc. 1`). Los HTML no tienen páginas, así que se cita por artículo. El modelo de embeddings es pequeño; uno más grande (`multilingual-e5-large`, 2,2 GB) podría recuperar mejor, a costa de la descarga.
 
+## Sesión 5: dashboard
+
+```bash
+streamlit run app.py
+```
+
+| Parte | Qué muestra |
+| --- | --- |
+| Fila de filtros | Estación (código, nombre y municipio), fecha y ventana de la serie (90 días, 1 año, todo). Aplica a todo lo de abajo |
+| Tarjetas | PM2.5 medido ese día con su categoría ICA y nivel de episodio; predicción del modelo para el día siguiente con la probabilidad de cada clase; lo que pasó realmente ese día siguiente (acierto o fallo, y qué decía la persistencia) |
+| Mapa | Estaciones en operación en la fecha elegida, coloreadas por categoría ICA, con tooltip (nombre, municipio, valor, categoría). Gris = la estación operaba pero no tuvo día válido. Clic en una estación = seleccionarla |
+| Serie de tiempo | PM2.5 diario de la estación con la línea del límite de 37 µg/m³, la fecha elegida marcada y tooltip por día |
+| Chat | El agente con sus 3 herramientas. Conoce la estación y la fecha elegidas. Los errores de herramientas se muestran como aviso y los de la API del LLM como error |
+
+Cada gráfico tiene su tabla ("Ver tabla del mapa", "Ver datos de la serie"), y los colores del ICA siempre van con su etiqueta de texto. La Res. 2254 solo nombra los colores (Verde, Amarillo...); como el ICA usa los mismos rangos que el AQI de la US EPA, se usan los RGB de esa convención (`src/ica.py`).
+
+**Coordenadas y nombres de las estaciones:** del dataset oficial SIATA, "Información de la Red de Calidad del Aire" ([doi:10.83041/XTI3FH](https://doi.org/10.83041/XTI3FH)). `scripts/download_siata.py` lo descarga y `python -m src.data process` lo une a `data/processed/estaciones.csv` (nombre, latitud, longitud, municipio y zona). Con esos datos el agente reconoce estaciones por barrio o nombre ("Aranjuez", "Ciro Mendia"). También corrigen una suposición anterior: `SUR-TRAF` está en Sabaneta.
+
+**Problemas encontrados al probarlo en el navegador, ya corregidos:**
+
+- pydeck convierte `radius_units="meters"` en la expresión `@@=meters` y los círculos cubrían todo el mapa; se quitó (metros es el valor por defecto).
+- La posición debe ir como texto (`"[longitud, latitud]"`), no como lista de Python.
+- Con el chat fijo al fondo, Streamlit abría la página desplazada hasta abajo; el chat ahora va en un contenedor.
+- La recarga en caliente de Streamlit podía dejar dos versiones de la clase `ErrorHerramienta`; los errores se reconocen también por nombre (`es_error_herramienta`).
+
+La lógica de datos del dashboard está en `src/dashboard.py` (sin Streamlit) y tiene pruebas en `tests/test_dashboard.py`.
+
+## Sesión 6: evaluación del agente
+
+```bash
+python eval/run_eval.py --etiqueta v3 --pausa 20   # ~5 min con el plan gratuito de Groq
+```
+
+**Preguntas** (`eval/preguntas.yaml`): 12 preguntas fijas, distintas de las consultas usadas para ajustar el RAG.
+
+| Categoría | Preguntas | Herramienta esperada |
+| --- | --- | --- |
+| Datos medidos | P01–P03 | `get_pm25` |
+| Pronóstico | P04–P06 | `predict_tomorrow` |
+| Normativa | P07–P10 | `search_docs` |
+| Combinada | P11 | `get_pm25` + `search_docs` |
+| Fuera del corpus | P12 (ruido de motos) | `search_docs`, y debe decir que no lo encontró |
+
+**Métricas** (`src/evaluacion.py`):
+
+| Métrica | Qué mide |
+| --- | --- |
+| Herramienta correcta | Se llamaron todas las herramientas esperadas |
+| Cita presente | La respuesta cita [documento, ubicación] (en las 5 preguntas que lo exigen) |
+| Citas válidas | Cada cita de la respuesta coincide con un fragmento que devolvió `search_docs` en esa misma conversación: no hay citas inventadas |
+| Contenido | Comprobación automática: el PM2.5 de la respuesta es el valor real (calculado al correr), se nombra la clase que predice el modelo y aparecen las expresiones esperadas (p. ej. "38", "tres (3) días", "no encontré") |
+| Aviso médico | Incluye "no es consejo médico" |
+
+**Resultados** (Groq, `openai/gpt-oss-120b`, 6 nov 2026; historial en `eval/corridas/`):
+
+| Corrida | Herramienta | Cita presente | Citas válidas | Contenido | Aviso | Errores de API |
+| --- | --- | --- | --- | --- | --- | --- |
+| v1 | 75 % | 0 % | — | 25 % | 25 % | 9 de 12 |
+| v2 | 100 % | 60 % | 100 % | 100 % | 100 % | 0 |
+| **v3** | **100 %** | **100 %** | **100 %** | **100 %** | **100 %** | **0** |
+
+- **v1 no mide al agente.** 9 preguntas fallaron por el límite de Groq (8.000 tokens por minuto, error 429). Corrección: el cliente espera el tiempo que indica la API (`retry-after` o "try again in X s") y reintenta hasta 3 veces.
+- **v2** (mismo agente, con reintentos): P09 y P10 sí citaban, pero con corchetes `【…】`, una costumbre de gpt-oss que el usuario veía tal cual. P06 además dejaba marcas como `【...predicted data...】`. Corrección: la instrucción pide corchetes normales y `limpiar_respuesta` convierte `【cita】` en `[cita]` y elimina las marcas que no son citas de documentos.
+- **v3:** 12 de 12 en todas las métricas. La mediana de 14 s por pregunta incluye las esperas por el límite de tokens; sin esperas, una pregunta con datos tarda unos 2 s.
+
+**Limitaciones de esta evaluación:**
+
+- Es una sola corrida por pregunta, con temperatura 0. El LLM puede variar entre corridas.
+- Las 12 preguntas las escribí yo, y el agente se corrigió con base en v2. El 100 % de v3 es sobre las mismas preguntas.
+- La comprobación de pronóstico solo verifica que se nombre la clase correcta. Si la respuesta nombra todas las clases (p. ej. al dar las probabilidades), también pasa.
+- La calidad de redacción no se mide automáticamente; se revisaron a mano P06, P07 y P11.
+
+## Sesión 7: reproducibilidad y entregables
+
+**Prueba en clon limpio (6 nov 2026).** Se copiaron solo los archivos que van al repositorio (62) a una carpeta nueva y se siguieron los pasos del inicio rápido con **Python 3.11** y un entorno virtual nuevo:
+
+| Paso | Primera prueba | Segunda prueba |
+| --- | --- | --- |
+| `pip install -r requirements.txt` | Falló en `jupyterlab` por rutas de más de 260 caracteres en Windows | Correcto en 211 s |
+| `pytest -q` | 63/63 | 65/65 |
+| `python -m src.llm` | Correcto | Correcto |
+| Pregunta de normativa al agente | El modelo de embeddings no se descargó (misma causa) y `search_docs` dio error | Respuesta con citas del POECA |
+| `streamlit run app.py` | Responde | Responde en 2 s |
+
+Correcciones entre las dos pruebas:
+
+- Jupyter pasó a ser opcional, porque solo lo usa el notebook de EDA.
+- El modelo de embeddings se guarda en una ruta corta (`~/.cache/si3003_fastembed`).
+- Si el modelo no se puede cargar, la búsqueda sigue funcionando solo con BM25 y lo avisa.
+- Se agregó al inicio rápido una nota sobre las rutas largas en Windows.
+
+**Entregables:** `informe.pdf` (3 páginas; fuente en `docs/informe.md`), `DECLARACION_IA.md`, `docs/guion_video.md` y este README. El informe y la declaración tienen campos **[COMPLETA]** que debe llenar el autor.
+
 ## Plan C: CSV manual
 
 Si fallan el SIATA y datos.gov.co, descarga un CSV en formato largo (portal de datos abiertos del AMVA u otra fuente oficial), ajusta `COLUMNS` a sus nombres y corre:
@@ -298,7 +467,7 @@ python -m src.data process --raw ruta/al/archivo.csv
 | Fuente | Estado |
 | --- | --- |
 | Repositorio de Datos SIATA, DOI 10.83041/AUWZWT | **Fuente principal, verificada el 6 nov 2026.** 165 archivos mensuales (2013-01 a 2026-09); descargados y procesados 2019-2026. Sin estación-año con mediana > 100 µg/m³ |
-| Coordenadas de estaciones | No vienen en el dataset del SIATA; pendiente para el mapa del dashboard |
+| Coordenadas y nombres de estaciones | Dataset oficial SIATA doi:10.83041/XTI3FH (`Estaciones_calidad_aire.tab`), verificado el 6 nov 2026; cubre las 30 estaciones |
 | Recurso `g4t8-zkc3` en datos.gov.co | Respaldo. Identificador tomado del [README de BRUMA](https://github.com/saracastrillons/bruma). Sin confirmar |
 | Paginación de la API | Según la [documentación oficial de Socrata](https://dev.socrata.com/docs/paging.html): hasta 50 000 filas por página en endpoints 2.0 y `$order=:id` para orden estable |
 | Límite diario PM2.5 = 37 µg/m³ | [Res. 2254 de 2017](https://normas.cra.gov.co/gestor/docs/resolucion_minambienteds_2254_2017.htm), Art. 2, parágrafo 1 (verificado) |
@@ -321,14 +490,19 @@ calidad-aire/
 │   ├── llm.py         # cliente Groq / NVIDIA NIM / Ollama
 │   ├── tools.py       # get_pm25, predict_tomorrow
 │   ├── agent.py       # loop manual con T_MAX
-│   └── rag.py         # fragmentos, embeddings, FAISS, BM25 y búsqueda híbrida
-├── app.py             # dashboard Streamlit
+│   ├── rag.py         # fragmentos, embeddings, FAISS, BM25 y búsqueda híbrida
+│   ├── dashboard.py   # datos del mapa, la serie y la tarjeta de predicción
+│   └── evaluacion.py  # métricas de la evaluación del agente
+├── docs/              # informe.md (fuente del PDF) y guion_video.md
+├── app.py             # dashboard Streamlit (mapa, serie, predicción y chat)
 ├── .env.example       # plantilla de configuración del LLM
 ├── scripts/
 │   ├── download_siata.py   # fuente principal
-│   └── download_corpus.py
+│   ├── download_corpus.py
+│   └── generar_informe.py  # docs/informe.md -> informe.pdf
 ├── notebooks/01_eda.ipynb
-├── tests/             # test_data.py, test_model.py, test_agent.py, test_rag.py
+├── eval/              # preguntas.yaml, run_eval.py, resultados.csv, resumen.json, corridas/
+├── tests/             # test_data, test_model, test_agent, test_rag, test_dashboard, test_evaluacion
 ├── models/            # modelo y métricas
 ├── index/             # índice FAISS, fragmentos y evaluación de recuperación
 ├── data/              # raw/ (ignorado en git), processed/, corpus/

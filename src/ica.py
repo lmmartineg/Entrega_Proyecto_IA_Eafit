@@ -34,6 +34,12 @@ ICA_PM25: list[tuple[float, float, str, str]] = [
     (251, 500, "Peligrosa", "Marrón"),
 ]
 
+# Códigos de color para dibujar. La Res. 2254 solo nombra los colores (Tabla 5); el ICA
+# usa los mismos rangos que el AQI de la US EPA (0-50, 51-100, ...), así que se toman
+# los valores RGB de la convención de la EPA/AirNow.
+COLORES_HEX = {"Verde": "#00E400", "Amarillo": "#FFFF00", "Naranja": "#FF7E00",
+               "Rojo": "#FF0000", "Púrpura": "#8F3F97", "Marrón": "#7E0023"}
+
 # Tabla 5 (Art. 19): rango del índice, color, estado y efectos (transcrito de la imagen obj_6.gif).
 EFECTOS_ICA: list[tuple[str, str, str, str]] = [
     ("0-50", "Verde", "Buena", "La contaminación atmosférica supone un riesgo bajo para la salud."),

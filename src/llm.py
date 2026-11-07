@@ -41,6 +41,26 @@ class ErrorLLM(RuntimeError):
     """Falla de la API del LLM (clave, red, límite de uso, modelo inexistente...)."""
 
 
+ESPERA_MAXIMA = 30.0
+
+
+def espera_sugerida(error: Exception, intento: int) -> float:
+    """Segundos a esperar antes de reintentar. Groq indica el tiempo en el encabezado
+    retry-after y en el mensaje ("Please try again in 10.42s"); si no lo hay, espera
+    creciente 2, 4, 8 s. Se limita a ESPERA_MAXIMA."""
+    import re
+    s = None
+    resp = getattr(error, "response", None)
+    try:
+        s = float(resp.headers.get("retry-after")) if resp is not None else None
+    except (TypeError, ValueError, AttributeError):
+        s = None
+    if s is None:
+        m = re.search(r"try again in ([\d.]+)\s*s", str(error))
+        s = float(m.group(1)) if m else 2.0 * (2 ** intento)
+    return min(s + 0.5, ESPERA_MAXIMA)
+
+
 @dataclass
 class LlamadaHerramienta:
     id: str
@@ -67,7 +87,8 @@ def cargar_entorno() -> None:
 class ClienteLLM:
     def __init__(self, proveedor: str | None = None, modelo: str | None = None,
                  proveedor_alt: str | None = None, temperatura: float = 0.0,
-                 timeout: float = 60.0):
+                 timeout: float = 60.0, reintentos: int = 3):
+        self.reintentos = reintentos
         cargar_entorno()
         self.proveedor = (proveedor or os.getenv("LLM_PROVIDER") or "groq").lower()
         self.modelo = modelo or os.getenv("LLM_MODEL") or None
@@ -93,15 +114,15 @@ class ClienteLLM:
         kwargs = {"model": modelo, "messages": mensajes, "temperature": self.temperatura}
         if herramientas:
             kwargs["tools"] = herramientas
-        for intento in range(2):
+        for intento in range(self.reintentos + 1):
             try:
                 r = cliente.chat.completions.create(**kwargs)
                 break
             except (openai.RateLimitError, openai.APIConnectionError, openai.APITimeoutError,
                     openai.InternalServerError) as e:
-                if intento == 1:
+                if intento == self.reintentos:
                     raise ErrorLLM(f"{proveedor}: {e.__class__.__name__}: {e}") from e
-                time.sleep(2)
+                time.sleep(espera_sugerida(e, intento))
             except openai.APIError as e:
                 raise ErrorLLM(f"{proveedor}: {e.__class__.__name__}: {e}") from e
         m = r.choices[0].message
