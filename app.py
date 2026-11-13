@@ -66,6 +66,8 @@ with st.sidebar:
         cliente = cargar_cliente()
         st.caption(f"LLM: {cliente.proveedor}"
                    + (f" (alterno: {cliente.proveedor_alt})" if cliente.proveedor_alt else ""))
+        if cliente.clave_faltante():
+            st.warning(cliente.clave_faltante())
     except L.ErrorLLM as e:
         cliente = None
         st.error(f"Configuración del LLM: {e}")
@@ -116,7 +118,7 @@ with t2:
             color=alt.Color("hex:N", scale=None, legend=None),
             tooltip=[alt.Tooltip("clase:N", title="Clase"), alt.Tooltip("probabilidad:Q", format=".1%")])
         textos = barras.mark_text(align="left", dx=4).encode(text="etiqueta:N", color=alt.value("#666"))
-        st.altair_chart((barras + textos).properties(height=110), use_container_width=True)
+        st.altair_chart((barras + textos).properties(height=110), width="stretch")
     except Exception as e:
         if not es_error_herramienta(e):
             raise
@@ -179,7 +181,7 @@ with c_mapa:
             tooltip={"html": "<b>{nombre}</b> ({estacion})<br/>{municipio} {zona}<br/>"
                              "PM2.5: {pm25_texto}<br/>{categoria}"})
         st.pydeck_chart(deck, on_select=al_seleccionar_en_mapa, selection_mode="single-object",
-                        key="mapa", use_container_width=True)
+                        key="mapa", width="stretch")
         presentes = [c for c in ["Verde", "Amarillo", "Naranja", "Rojo", "Púrpura", "Marrón"]
                      if c in set(m["color"])]
         nombres = {c: n for _, _, n, c in ica.ICA_PM25}
@@ -192,7 +194,7 @@ with c_mapa:
         with st.expander("Ver tabla del mapa"):
             st.dataframe(m[["estacion", "nombre", "municipio", "pm25", "categoria"]]
                          .sort_values("pm25", ascending=False, na_position="last"),
-                         hide_index=True, use_container_width=True)
+                         hide_index=True, width="stretch")
     except Exception as e:  # el panel no debe caerse por el mapa
         st.error(f"No se pudo dibujar el mapa: {e.__class__.__name__}: {e}")
 
@@ -226,13 +228,13 @@ with c_serie:
                 hoy = s[s["fecha"] == fecha]
                 capas.append(alt.Chart(hoy).mark_point(size=110, filled=False, strokeWidth=2, color="#222")
                              .encode(x=x, y=y))
-            st.altair_chart(alt.layer(*capas).properties(height=360), use_container_width=True)
+            st.altair_chart(alt.layer(*capas).properties(height=360), width="stretch")
             sobre = int((s["pm25"] > cfg.LIMITE_PM25_24H).sum())
             st.caption(f"{len(s)} días válidos · máximo {s['pm25'].max():.1f} µg/m³ · "
                        f"{sobre} días por encima de 37 µg/m³ · el círculo negro marca la fecha elegida.")
             with st.expander("Ver datos de la serie"):
                 st.dataframe(s.sort_values("fecha", ascending=False), hide_index=True,
-                             use_container_width=True)
+                             width="stretch")
     except Exception as e:
         st.error(f"No se pudo dibujar la serie: {e.__class__.__name__}: {e}")
 

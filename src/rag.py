@@ -46,7 +46,7 @@ K_DEFECTO = 8   # con 6, 2 de las 12 consultas de ajuste quedaban en los puestos
 # para ajustar la búsqueda (plurales, k, regla del mejor resultado de cada método),
 # así que su resultado es optimista; la evaluación independiente es la de la Sesión 6.
 _P, _R = "POECA (Acuerdo Metropolitano 04 de 2018)", "Res. 2254 de 2017"
-_T = "Res. 2254 de 2017, Tablas 4-6 (transcripción del proyecto)"
+_T = "Res. 2254 de 2017"
 CONSULTAS_AJUSTE = [
     ("¿Qué pasa si se declara nivel de alerta?", [f"{_P}, Art. 27", f"{_P}, Art. 18", f"{_T}, Tabla 4", f"{_R}, Art. 10"]),
     ("¿Cuál es el rango de concentración de PM2.5 para el nivel de alerta?", [f"{_T}, Tabla 4"]),
@@ -84,8 +84,11 @@ HTML = {
         # Después del acuerdo viene el documento técnico del plan.
         "cortes": {r"^DOCUMENTO DEL PLAN INTEGRAL DE GESTIÓN DE LA CALIDAD DEL AIRE": "Documento técnico"}},
 }
+# Las Tablas 4-6 son imágenes en la fuente: se agregan como transcripción (src/ica.py),
+# pero se citan con su ubicación oficial, [Res. 2254 de 2017, Tabla N]. Un nombre más
+# largo hacía que el LLM lo acortara y la cita dejara de coincidir (evaluación v4, P09).
 DOC_TABLAS = {"archivo": "(transcripción de src/ica.py)",
-              "corto": "Res. 2254 de 2017, Tablas 4-6 (transcripción del proyecto)",
+              "corto": "Res. 2254 de 2017",
               "url": "https://normas.cra.gov.co/gestor/docs/resolucion_minambienteds_2254_2017.htm"}
 
 RE_ART = re.compile(r"^ART[ÍI]CULO\s+(\d+)\s*[oº°]?\s*\.?\s*(.*)$")
@@ -176,12 +179,12 @@ def secciones_tablas() -> list[dict]:
     t6 = "; ".join(f"ICA {r}, {c}, {n}: PM2.5 de {lo:g} a {hi:g} µg/m³"
                    for r, (lo, hi, n, c) in zip(rangos_ica, ica.ICA_PM25))
     return [
-        {"ubicacion": "Tabla 4", "titulo": "CONCENTRACIONES PARA LOS NIVELES DE PREVENCIÓN, ALERTA O EMERGENCIA",
+        {"ubicacion": "Tabla 4", "titulo": "CONCENTRACIONES PARA LOS NIVELES DE PREVENCIÓN, ALERTA O EMERGENCIA (TRANSCRIPCIÓN)",
          "texto": f"Tabla 4 (Art. 10) de la Res. 2254 de 2017, PM2.5 promedio de 24 horas: {t4}. "
                   "Las declaraciones de niveles por PM2.5 aplican desde el 1 de julio de 2018."},
-        {"ubicacion": "Tabla 5", "titulo": "DESCRIPCIÓN GENERAL DEL ÍNDICE DE CALIDAD DEL AIRE",
+        {"ubicacion": "Tabla 5", "titulo": "DESCRIPCIÓN GENERAL DEL ÍNDICE DE CALIDAD DEL AIRE (TRANSCRIPCIÓN)",
          "texto": f"Tabla 5 (Art. 19) de la Res. 2254 de 2017, efectos en la salud por rango del ICA. {t5}"},
-        {"ubicacion": "Tabla 6", "titulo": "PUNTOS DE CORTE DEL ICA PARA PM2.5",
+        {"ubicacion": "Tabla 6", "titulo": "PUNTOS DE CORTE DEL ICA PARA PM2.5 (TRANSCRIPCIÓN)",
          "texto": f"Tabla 6 (Art. 20) de la Res. 2254 de 2017, puntos de corte del ICA para PM2.5 en 24 horas: {t6}."},
     ]
 

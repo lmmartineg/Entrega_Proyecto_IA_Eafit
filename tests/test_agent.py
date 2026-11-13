@@ -192,3 +192,8 @@ def test_cliente_sin_clave_da_error_claro(monkeypatch):
     c = L.ClienteLLM(proveedor="groq", proveedor_alt="")
     with pytest.raises(L.ErrorLLM, match="GROQ_API_KEY"):
         c.chat([{"role": "user", "content": "hola"}])
+    # El aviso dice qué hacer y que el resto de la app funciona sin clave.
+    aviso = c.clave_faltante()
+    assert "console.groq.com" in aviso and "README" in aviso and "funcionan sin clave" in aviso
+    monkeypatch.setenv("GROQ_API_KEY", "x" * 20)
+    assert c.clave_faltante() is None

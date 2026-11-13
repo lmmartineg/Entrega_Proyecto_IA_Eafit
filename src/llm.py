@@ -100,12 +100,24 @@ class ClienteLLM:
             if p not in PROVEEDORES:
                 raise ErrorLLM(f"Proveedor desconocido: {p}. Opciones: {list(PROVEEDORES)}")
 
+    def clave_faltante(self) -> str | None:
+        """Mensaje para el usuario si falta la clave del proveedor principal; None si está."""
+        conf = PROVEEDORES[self.proveedor]
+        if conf["clave"] and not os.getenv(conf["clave"]):
+            return (f"Falta {conf['clave']} en .env para usar {self.proveedor}. El chat necesita una clave "
+                    "gratuita (https://console.groq.com/keys): copia .env.example como .env y pégala en "
+                    f"{conf['clave']}= (ver README, «Inicio rápido»). El mapa, la serie y la predicción "
+                    "funcionan sin clave.")
+        return None
+
     def _cliente(self, proveedor: str):
         from openai import OpenAI
         conf = PROVEEDORES[proveedor]
         clave = os.getenv(conf["clave"]) if conf["clave"] else "ollama"
         if not clave:
-            raise ErrorLLM(f"Falta {conf['clave']} en .env para usar {proveedor}.")
+            raise ErrorLLM(f"Falta {conf['clave']} en .env para usar {proveedor}. El chat necesita una clave "
+                           "gratuita (https://console.groq.com/keys): copia .env.example como .env y pégala "
+                           "(ver README, «Inicio rápido»). El mapa, la serie y la predicción funcionan sin clave.")
         return OpenAI(base_url=conf["base_url"], api_key=clave, timeout=self.timeout, max_retries=0)
 
     def _llamar(self, proveedor: str, modelo: str, mensajes: list[dict], herramientas):
@@ -120,7 +132,8 @@ class ClienteLLM:
                 break
             except (openai.RateLimitError, openai.APIConnectionError, openai.APITimeoutError,
                     openai.InternalServerError) as e:
-                if intento == self.reintentos:
+                # El límite DIARIO no se recupera en segundos: reintentar solo hace esperar.
+                if intento == self.reintentos or "per day" in str(e):
                     raise ErrorLLM(f"{proveedor}: {e.__class__.__name__}: {e}") from e
                 time.sleep(espera_sugerida(e, intento))
             except openai.APIError as e:

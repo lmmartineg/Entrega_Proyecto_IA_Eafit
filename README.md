@@ -1,6 +1,7 @@
 # Agente de calidad del aire del Valle de Aburrá
 
 Proyecto final de SI3003 Inteligencia Artificial (EAFIT, 2026), idea 3.1 del enunciado.
+**Autor:** Luis Miguel Martínez Gonzales (proyecto individual).
 
 Predice la categoría de PM2.5 del día siguiente en las estaciones del SIATA con un clasificador implementado desde cero (Parte 1), y lo combina con un agente LLM que consulta los datos, el modelo y la normativa (Res. 2254 de 2017, POECA, PIGECA) citando sus fuentes (Parte 2). Todo se usa desde un dashboard en Streamlit.
 
@@ -9,14 +10,17 @@ Predice la categoría de PM2.5 del día siguiente en las estaciones del SIATA co
 | Entregable | Dónde |
 | --- | --- |
 | Código y app | este repositorio (`app.py`, `src/`) |
-| Informe (máx. 4 páginas) | `informe.pdf` (fuente: `docs/informe.md`; se regenera con `python scripts/generar_informe.py`) |
-| Evaluación del agente | `eval/` (preguntas, script y resultados) |
+| Informe (máx. 4 páginas) | `informe.pdf` |
+| Evaluación del agente (15 preguntas) | [`eval/RESULTADOS.md`](eval/RESULTADOS.md): tabla por pregunta (herramienta esperada y llamada, cita) y respuestas completas; preguntas en `eval/preguntas.yaml` |
 | Declaración de uso de IA generativa | `DECLARACION_IA.md` |
-| Guion del video de respaldo | `docs/guion_video.md` |
+| Video demostrativo | [https://www.youtube.com/watch?v=janrE4cZDAQ](https://www.youtube.com/watch?v=janrE4cZDAQ) |
+| EDA con resultados | `notebooks/01_eda.ipynb` (ejecutado; se ve en GitHub sin correrlo) |
 
 ## Inicio rápido (usar la app)
 
 El repositorio ya trae los datos procesados, el modelo entrenado y el índice del RAG: no hace falta descargar ni entrenar nada.
+
+> **Sin clave de Groq** la app abre igual: el mapa, la serie de tiempo y la predicción funcionan, y la barra lateral explica cómo activar el chat. El chat con el agente necesita una clave gratuita de Groq (2 minutos en console.groq.com). El video demostrativo muestra el agente funcionando.
 
 Requisitos: Python 3.11 o superior, conexión a internet (para el LLM, el mapa base y, la primera vez, el modelo de embeddings de ~0,22 GB) y una clave gratuita de [Groq](https://console.groq.com/keys).
 
@@ -53,7 +57,7 @@ En Windows:
 - Si `python` abre la Microsoft Store, crea el entorno con la ruta completa de tu Python (por ejemplo `C:\Users\<usuario>\miniconda3\python.exe -m venv .venv`).
 - Windows limita las rutas a 260 caracteres. Clona el repositorio en una carpeta de ruta corta (por ejemplo `C:\proyectos`) o [habilita las rutas largas](https://pip.pypa.io/warnings/enable-long-paths). El modelo de embeddings se guarda en `~/.cache/si3003_fastembed` (o en la carpeta de la variable `EMBEDDINGS_CACHE`). Si no se puede descargar, la búsqueda en la normativa sigue funcionando solo con BM25 y el agente lo avisa.
 
-Pruebas (65, sin red; el LLM y los embeddings se simulan):
+Pruebas (68, sin red; el LLM y los embeddings se simulan):
 
 ```bash
 pytest -q
@@ -73,7 +77,7 @@ Cada paso regenera lo que ya viene en el repositorio. Duraciones aproximadas en 
 | 6. Evaluación de recuperación | `python -m src.rag evaluar` | `index/evaluacion_recuperacion.json` |
 | 7. Evaluación del agente (~5 min) | `python eval/run_eval.py --pausa 20` | `eval/resultados.csv`, `eval/resumen.json` |
 
-El EDA está en `notebooks/01_eda.ipynb`. Necesita el paso 2 y Jupyter, que no está en `requirements.txt` porque la app no lo usa: `pip install jupyter`.
+El EDA está en `notebooks/01_eda.ipynb`, ya ejecutado con sus resultados. Para volver a correrlo necesita el paso 2 y Jupyter, que no está en `requirements.txt` porque la app no lo usa: `pip install jupyter`.
 
 ## Resultados principales
 
@@ -82,9 +86,103 @@ El EDA está en `notebooks/01_eda.ipynb`. Necesita el paso 2 y Jupyter, que no e
 | Datos | 30 estaciones, 2019-01 a 2026-09; 58.249 estación-día con etiqueta |
 | Clasificador (prueba 2024-01 a 2026-09) | Exactitud 0,808 y F1 macro 0,665. Supera a la clase mayoritaria (F1 0,275) y a la persistencia en exactitud (0,796); en F1 macro empata con la persistencia (0,685; diferencia −0,021, IC 95 % [−0,055; +0,010]) |
 | Recuperación del RAG | 12/12 consultas con la cita esperada entre las 8 primeras (búsqueda híbrida; optimista, ver Sesión 4) |
-| Agente (12 preguntas, Groq `openai/gpt-oss-120b`) | 100 % herramienta correcta, 100 % con cita, 100 % de citas válidas, 100 % contenido verificado |
+| Agente (15 preguntas, Groq `openai/gpt-oss-120b`) | 14/15 herramienta correcta, 100 % con cita, 100 % de citas válidas, 14/15 contenido verificado. Falla P12: rechaza como "fuera de tema" una pregunta de ruido en vez de buscarla |
 
 Las limitaciones de cada resultado están en el detalle de abajo y en el informe.
+
+
+## Arquitectura
+
+```mermaid
+flowchart TB
+    U(["Usuario"]) <--> UI["Dashboard Streamlit<br/>filtros · mapa · serie · predicción · chat"]
+    UI <-->|"pregunta / respuesta con citas"| AG["Agente · loop manual (T_MAX = 5)<br/>LLM en Groq: gpt-oss-120b"]
+    AG <-->|"llama y recibe resultado o error"| H
+
+    subgraph H["Herramientas"]
+        direction LR
+        T1["get_pm25<br/>dato medido"]
+        T2["predict_tomorrow<br/>pronóstico propio"]
+        T3["search_docs<br/>normativa con citas"]
+    end
+
+    subgraph P1["Parte 1 · datos y modelo propio"]
+        direction LR
+        A["SIATA: PM2.5 horario<br/>30 estaciones"] --> B["Promedio diario<br/>(≥ 18 de 24 h)"]
+        B --> C["Variables sin fuga<br/>rezagos, media, valle, calendario"]
+        C --> D["Regresión softmax<br/>en NumPy"]
+    end
+
+    subgraph P2["Parte 2 · RAG"]
+        direction LR
+        E["Res. 2254 · POECA ·<br/>PIGECA · informe SIATA"] --> F["599 fragmentos<br/>por artículo o página"]
+        F --> G["FAISS + BM25<br/>fusión RRF"]
+    end
+
+    T1 -.-> B
+    T2 -.-> D
+    T3 -.-> G
+```
+
+**Dónde ocurre la combinación de las dos partes:** el agente decide, en una misma conversación, consultar el dato medido (`get_pm25`), el pronóstico del modelo propio (`predict_tomorrow`) y la normativa (`search_docs`). El dashboard usa directamente `get_pm25` y `predict_tomorrow` para el mapa, la serie y la tarjeta de predicción, sin necesitar el LLM.
+
+### Recorrido de una pregunta
+
+Ejemplo real de la evaluación (P11): *"El 15 de marzo de 2020, ¿la concentración en CEN-TRAF correspondía a algún nivel de episodio? ¿Qué dice la norma sobre ese nivel?"*
+
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant A as Agente (loop)
+    participant L as LLM (Groq)
+    participant T as Herramientas
+    U->>A: pregunta
+    A->>L: instrucción de sistema + pregunta + esquemas de herramientas
+    L-->>A: pide get_pm25(CEN-TRAF, 2020-03-15)
+    A->>T: ejecuta get_pm25
+    T-->>A: 52,8 µg/m³ · ICA Naranja · nivel Prevención
+    A->>L: resultado como observación
+    L-->>A: pide search_docs("nivel de prevención PM2.5")
+    A->>T: ejecuta search_docs (FAISS + BM25)
+    T-->>A: 8 fragmentos con su cita (Tabla 4, Art. 10…)
+    A->>L: fragmentos como observación
+    L-->>A: respuesta final con citas
+    A-->>U: "52,8 µg/m³ → nivel de Prevención (38–55 µg/m³) [Res. 2254 de 2017, …, Tabla 4]…"
+```
+
+Si una herramienta falla (estación inexistente, fecha sin datos), su error vuelve al LLM como observación y este se lo explica al usuario. Si se agotan las 5 iteraciones, una última llamada sin herramientas cierra la respuesta. Las preguntas ajenas a la calidad del aire no se responden: el agente redirige al tema.
+
+### Módulos
+
+| Módulo | Qué hace | Parte |
+| --- | --- | --- |
+| `scripts/download_siata.py` | Descarga el PM2.5 y los metadatos de estaciones del SIATA | Datos |
+| `src/data.py` | Formato ancho → largo, limpieza y promedio diario con la regla del 75 % | Datos |
+| `src/ica.py` | Tablas 4, 5 y 6 de la Res. 2254: ICA, colores, efectos y niveles | Datos |
+| `src/features.py` | Variables sin fuga y etiqueta del día siguiente (3 clases) | Parte 1 |
+| `src/model.py` | Regresión softmax (L2, pesos de clase, Nesterov), líneas base y métricas | Parte 1 |
+| `src/train.py` | Validación temporal, selección, entrenamiento final, bootstrap y guardado en `models/` | Parte 1 |
+| `src/sanity_sklearn.py` | Prueba de cordura contra scikit-learn | Parte 1 |
+| `src/rag.py` | Fragmentos, embeddings, índice FAISS (`index/`), BM25 y búsqueda híbrida | Parte 2 |
+| `src/tools.py` | Las 3 herramientas del agente y el reconocimiento de estaciones | Parte 2 |
+| `src/llm.py` | Cliente compatible con OpenAI (Groq, NVIDIA NIM, Ollama) con reintentos | Parte 2 |
+| `src/agent.py` | Loop del agente con T_MAX, instrucción de sistema y limpieza de citas | Parte 2 |
+| `src/evaluacion.py` + `eval/` | Evaluación del agente con preguntas fijas | Parte 2 |
+| `src/dashboard.py` + `app.py` | Datos y vista del dashboard | Dashboard |
+
+```text
+calidad-aire/
+├── app.py                 # dashboard Streamlit
+├── src/                   # módulos de la tabla anterior (+ config.py: rutas y umbrales)
+├── scripts/               # download_siata.py, download_corpus.py
+├── data/                  # raw/ (no se sube), processed/ (sí), corpus/ (documentos del RAG)
+├── models/                # modelo entrenado, métricas, bootstrap
+├── index/                 # índice FAISS y fragmentos del RAG
+├── eval/                  # preguntas.yaml, run_eval.py, RESULTADOS.md, corridas/
+├── notebooks/01_eda.ipynb # EDA ejecutado
+├── tests/                 # pruebas automáticas (sin red)
+├── informe.pdf · DECLARACION_IA.md · requirements.txt · .env.example
+```
 
 ---
 
@@ -175,7 +273,7 @@ El POECA y el PIGECA vienen del [normograma oficial del AMVA](http://alphasig.me
 
 ### 6. ICA y niveles de episodio
 
-`src/ica.py` ya contiene los puntos de corte para PM2.5 en 24 h, transcritos el 6 nov 2026 de las imágenes de la Res. 2254 de 2017 en la página de la CRA. Conviene cotejarlos con el PDF del Diario Oficial 50.415.
+`src/ica.py` ya contiene los puntos de corte para PM2.5 en 24 h, transcritos el 6 nov 2026 de las imágenes de la Res. 2254 de 2017 en la página de la CRA. Se cotejaron el 12 nov 2026 contra la compilación de la Res. 2254 de la Alcaldía de Bogotá (SISJUR, https://www.alcaldiabogota.gov.co/sisjur/normas/Norma1.jsp?i=82634), fuente independiente de la página de la CRA usada para transcribir: coinciden en las tres tablas. No se pudo descargar el PDF del Diario Oficial 50.415.
 
 | µg/m³ (24 h) | ICA | Categoría (Tabla 6) | Color (Tabla 5) | Nivel (Tabla 4) |
 | --- | --- | --- | --- | --- |
@@ -312,7 +410,7 @@ La estación se puede indicar por código (`MED-ARAN`, `med aran`), por municipi
 | ¿Cómo estará el aire mañana en Itagüí? | `predict_tomorrow` → error de ambigüedad | Nombra ITA-CJUS e ITA-CONC y pide elegir |
 | ¿Cómo está el aire en la estación de Narnia? | ninguna | Dice que no existe y sugiere estaciones válidas |
 
-Ajustes hechos tras esta prueba: la instrucción de sistema aclara que el pronóstico no es del SIATA y que el modelo no estima la concentración; las estaciones se listan por municipio; las herramientas devuelven `otras_estaciones_activas_del_municipio`. La evaluación sistemática del agente (12 preguntas) es la Sesión 6.
+Ajustes hechos tras esta prueba: la instrucción de sistema aclara que el pronóstico no es del SIATA y que el modelo no estima la concentración; las estaciones se listan por municipio; las herramientas devuelven `otras_estaciones_activas_del_municipio`. La evaluación sistemática del agente (15 preguntas en su versión final) es la Sesión 6.
 
 ## Sesión 4: RAG sobre la normativa
 
@@ -332,7 +430,7 @@ La primera vez se descarga el modelo de embeddings (~0,22 GB) a `.cache/`, que e
 | POECA, Acuerdo Metropolitano 04 de 2018 (texto compilado) | 146 | Artículo; el Art. 27 (medidas) por nivel: `Art. 27, nivel de alerta` |
 | PIGECA, Acuerdo Metropolitano 16 de 2017 | 368 | Artículo del acuerdo o sección del documento técnico (`Secc. 2`) |
 | Informe de operación SIATA, enero 2025 (PDF) | 24 | Página (`pág. 3`) |
-| Res. 2254, Tablas 4–6 (transcripción del proyecto) | 5 | Tabla (`Tabla 4`) |
+| Res. 2254, Tablas 4–6 (transcripción del proyecto) | 5 | Tabla, con su ubicación oficial: `[Res. 2254 de 2017, Tabla 4]` |
 
 Las tablas 4, 5 y 6 de la Res. 2254 son imágenes en la fuente, así que el texto extraído no las contiene. Se agregan como un documento aparte, generado desde `src/ica.py` y marcado como transcripción. La página de la CRA codifica "µg/m³" como "íg/m3"; se corrige al extraer el texto.
 
@@ -391,10 +489,10 @@ La lógica de datos del dashboard está en `src/dashboard.py` (sin Streamlit) y 
 ## Sesión 6: evaluación del agente
 
 ```bash
-python eval/run_eval.py --etiqueta v3 --pausa 20   # ~5 min con el plan gratuito de Groq
+python eval/run_eval.py --etiqueta v6 --pausa 20   # ~7 min; consume ~100.000 de los 200.000 tokens diarios de Groq
 ```
 
-**Preguntas** (`eval/preguntas.yaml`): 12 preguntas fijas, distintas de las consultas usadas para ajustar el RAG.
+**Preguntas** (`eval/preguntas.yaml`): 15 preguntas fijas, distintas de las consultas usadas para ajustar el RAG. Tabla por pregunta y respuestas completas en [`eval/RESULTADOS.md`](eval/RESULTADOS.md).
 
 | Categoría | Preguntas | Herramienta esperada |
 | --- | --- | --- |
@@ -403,6 +501,9 @@ python eval/run_eval.py --etiqueta v3 --pausa 20   # ~5 min con el plan gratuito
 | Normativa | P07–P10 | `search_docs` |
 | Combinada | P11 | `get_pm25` + `search_docs` |
 | Fuera del corpus | P12 (ruido de motos) | `search_docs`, y debe decir que no lo encontró |
+| Fuera de tema | P13 (capital de Bangladesh) | ninguna: no debe responder "Daca" y debe redirigir a calidad del aire |
+| Premisa dudosa | P14 (¿los gatos bengalíes afectan el aire de Medellín?) | `search_docs`: decir que no hay evidencia, sin negarse |
+| Fuera de los datos | P15 (¿cómo está el clima en Aranjuez?) | no inventar temperatura ni lluvia; remitir a calidad del aire |
 
 **Métricas** (`src/evaluacion.py`):
 
@@ -420,18 +521,24 @@ python eval/run_eval.py --etiqueta v3 --pausa 20   # ~5 min con el plan gratuito
 | --- | --- | --- | --- | --- | --- | --- |
 | v1 | 75 % | 0 % | — | 25 % | 25 % | 9 de 12 |
 | v2 | 100 % | 60 % | 100 % | 100 % | 100 % | 0 |
-| **v3** | **100 %** | **100 %** | **100 %** | **100 %** | **100 %** | **0** |
+| v3 | 100 % | 100 % | 100 % | 100 % | 100 % | 0 |
+| v4 (13 preguntas) | 92 % | 100 % | 80 % | 92 % | 100 % | 0 |
+| v5 | 92 % | 100 % | 100 % | 92 % | 100 % | 0 |
+| **v6 (15 preguntas, final)** | **93 %** | **100 %** | **100 %** | **93 %** | **100 %** | **0** |
 
 - **v1 no mide al agente.** 9 preguntas fallaron por el límite de Groq (8.000 tokens por minuto, error 429). Corrección: el cliente espera el tiempo que indica la API (`retry-after` o "try again in X s") y reintenta hasta 3 veces.
 - **v2** (mismo agente, con reintentos): P09 y P10 sí citaban, pero con corchetes `【…】`, una costumbre de gpt-oss que el usuario veía tal cual. P06 además dejaba marcas como `【...predicted data...】`. Corrección: la instrucción pide corchetes normales y `limpiar_respuesta` convierte `【cita】` en `[cita]` y elimina las marcas que no son citas de documentos.
-- **v3:** 12 de 12 en todas las métricas. La mediana de 14 s por pregunta incluye las esperas por el límite de tokens; sin esperas, una pregunta con datos tarda unos 2 s.
+- **v3:** 12 de 12 en todas las métricas.
+- **v4:** al probar la app, el agente respondía preguntas ajenas ("¿cuánto es 4x4?", "¿capital de Bangladesh?"). Se agregó una regla de alcance y la pregunta P13. P13 pasa, pero P12 (ruido) se rechazó como fuera de tema, y P09 abrevió la cita de la Tabla 5. Además, la revisión manual de P09 encontró que mezclaba efectos de las categorías rojo y naranja y agregaba efectos que no están en los fragmentos; las métricas automáticas no lo detectaron.
+- **v5:** las tablas transcritas se citan con su ubicación oficial, `[Res. 2254 de 2017, Tabla N]`, y la instrucción prohíbe mezclar categorías del ICA o agregar información que no esté en los fragmentos. P09 queda correcta. P12 sigue fallando: el agente considera que el ruido no es calidad del aire y se niega sin buscar. Es defendible, porque no inventa, pero no es lo que la pregunta medía. No se ajustó más la instrucción para no sobreajustarla a estas mismas preguntas.
+- **v6 (final):** al usar la app, una pregunta sobre el aire con premisa rara (gatos) se rechazaba como fuera de tema. La regla se redefinió en tres casos (dentro del tema aunque la premisa sea rara, fuera de tema, ambigua), sin usar ejemplos de la evaluación, y se agregaron P14 (gatos) y P15 (clima en Aranjuez, que no debe inventar). Por el límite diario de Groq (200.000 tokens) la v6 se corrió en dos partes con el mismo agente; P01 se recalificó con el evaluador corregido, porque su cita (Art. 2) la entrega `get_pm25`. P12 sigue fallando. P14 y P15 pasan; P13 sigue pasando, así que la regla no se aflojó de más.
 
 **Limitaciones de esta evaluación:**
 
-- Es una sola corrida por pregunta, con temperatura 0. El LLM puede variar entre corridas.
-- Las 12 preguntas las escribí yo, y el agente se corrigió con base en v2. El 100 % de v3 es sobre las mismas preguntas.
+- Es una sola corrida por pregunta, con temperatura 0. El LLM puede variar entre corridas: en el video, el agente rechazó como fuera de tema la pregunta de los gatos bengalíes, que en la corrida v6 (P14) sí respondió buscando en los documentos. En ambos casos no inventó información.
+- Las 15 preguntas las escribió el autor, y la instrucción del agente se corrigió viendo v2, v4 y el uso de la app. El resultado de v6 es sobre esas mismas preguntas y se corrió en dos partes por el límite diario de Groq.
 - La comprobación de pronóstico solo verifica que se nombre la clase correcta. Si la respuesta nombra todas las clases (p. ej. al dar las probabilidades), también pasa.
-- La calidad de redacción no se mide automáticamente; se revisaron a mano P06, P07 y P11.
+- La fidelidad al texto citado no se mide automáticamente: se revisaron a mano P06, P07, P09 y P11, y en v4 la revisión encontró un error que las métricas no vieron.
 
 ## Sesión 7: reproducibilidad y entregables
 
@@ -452,7 +559,7 @@ Correcciones entre las dos pruebas:
 - Si el modelo no se puede cargar, la búsqueda sigue funcionando solo con BM25 y lo avisa.
 - Se agregó al inicio rápido una nota sobre las rutas largas en Windows.
 
-**Entregables:** `informe.pdf` (3 páginas; fuente en `docs/informe.md`), `DECLARACION_IA.md`, `docs/guion_video.md` y este README. El informe y la declaración tienen campos **[COMPLETA]** que debe llenar el autor.
+**Entregables:** `informe.pdf` (4 páginas), `DECLARACION_IA.md`, el [video demostrativo](https://www.youtube.com/watch?v=janrE4cZDAQ) y este README.
 
 ## Plan C: CSV manual
 
@@ -471,40 +578,6 @@ python -m src.data process --raw ruta/al/archivo.csv
 | Recurso `g4t8-zkc3` en datos.gov.co | Respaldo. Identificador tomado del [README de BRUMA](https://github.com/saracastrillons/bruma). Sin confirmar |
 | Paginación de la API | Según la [documentación oficial de Socrata](https://dev.socrata.com/docs/paging.html): hasta 50 000 filas por página en endpoints 2.0 y `$order=:id` para orden estable |
 | Límite diario PM2.5 = 37 µg/m³ | [Res. 2254 de 2017](https://normas.cra.gov.co/gestor/docs/resolucion_minambienteds_2254_2017.htm), Art. 2, parágrafo 1 (verificado) |
-| Puntos de corte del ICA y niveles de episodio | Tablas 4, 5 y 6 de la misma resolución, transcritas de sus imágenes en `src/ica.py` (6 nov 2026). Pendiente cotejar con el PDF del Diario Oficial |
+| Puntos de corte del ICA y niveles de episodio | Tablas 4, 5 y 6 de la misma resolución, transcritas de sus imágenes en `src/ica.py` (6 nov 2026). Cotejadas el 12 nov 2026 con SISJUR (Alcaldía de Bogotá): coinciden |
 | Regla de 18 de 24 horas válidas | Verificada en el informe SIATA de enero 2025 del corpus ("NP: No hay promedio por porcentaje de datos válidos inferior al 75 %") |
 | Corpus del RAG | 4 documentos descargados y verificados el 6 nov 2026, más la transcripción de las Tablas 4–6 de la Res. 2254. Índice en `index/`. El PDF del PIGECA en medellin.gov.co y las páginas del POECA en metropol.gov.co devuelven 404; se usa el normograma del AMVA |
-
-## Estructura actual
-
-```text
-calidad-aire/
-├── src/
-│   ├── config.py      # rutas, columnas, filtros, umbrales
-│   ├── data.py        # leer_siata, process (+ inspect/download de respaldo)
-│   ├── ica.py         # categorías ICA y niveles de episodio (Res. 2254)
-│   ├── features.py    # variables y etiqueta del día siguiente
-│   ├── model.py       # regresión softmax en NumPy, líneas base y métricas
-│   ├── train.py       # selección, entrenamiento y evaluación
-│   ├── sanity_sklearn.py  # verificación contra scikit-learn
-│   ├── llm.py         # cliente Groq / NVIDIA NIM / Ollama
-│   ├── tools.py       # get_pm25, predict_tomorrow
-│   ├── agent.py       # loop manual con T_MAX
-│   ├── rag.py         # fragmentos, embeddings, FAISS, BM25 y búsqueda híbrida
-│   ├── dashboard.py   # datos del mapa, la serie y la tarjeta de predicción
-│   └── evaluacion.py  # métricas de la evaluación del agente
-├── docs/              # informe.md (fuente del PDF) y guion_video.md
-├── app.py             # dashboard Streamlit (mapa, serie, predicción y chat)
-├── .env.example       # plantilla de configuración del LLM
-├── scripts/
-│   ├── download_siata.py   # fuente principal
-│   ├── download_corpus.py
-│   └── generar_informe.py  # docs/informe.md -> informe.pdf
-├── notebooks/01_eda.ipynb
-├── eval/              # preguntas.yaml, run_eval.py, resultados.csv, resumen.json, corridas/
-├── tests/             # test_data, test_model, test_agent, test_rag, test_dashboard, test_evaluacion
-├── models/            # modelo y métricas
-├── index/             # índice FAISS, fragmentos y evaluación de recuperación
-├── data/              # raw/ (ignorado en git), processed/, corpus/
-└── requirements.txt
-```

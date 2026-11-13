@@ -1,16 +1,18 @@
-# Sesiones 1-6 (datos, modelo, agente, RAG, dashboard y evaluación).
-pandas>=2.0
-numpy>=1.26
-requests>=2.31
-matplotlib>=3.8
+# Dependencias del proyecto. Versiones probadas el 12 nov 2026 (Python 3.11 y 3.13, Windows):
+# el límite superior evita que una versión futura incompatible rompa la app.
+pandas>=2.2,<4
+numpy>=1.26,<3
+requests>=2.31,<3
+matplotlib>=3.8,<4
+pytest>=8.0,<10
+pypdf>=5.0,<8          # texto de los PDF del corpus (RAG)
+scikit-learn>=1.4,<2   # solo para la prueba de cordura (python -m src.train --sklearn)
+openai>=1.40,<4        # cliente de APIs compatibles con OpenAI (Groq, NVIDIA NIM, Ollama)
+python-dotenv>=1.0,<2
+streamlit>=1.67,<1.68  # versión probada (usa width="stretch")
+altair>=5,<7
+pydeck>=0.9,<0.10
+faiss-cpu>=1.8,<2      # índice vectorial del RAG
+fastembed>=0.4,<0.10   # embeddings locales (ONNX, sin PyTorch)
+pyyaml>=6.0,<7         # eval/preguntas.yaml
 # jupyter (opcional, solo para notebooks/01_eda.ipynb): pip install jupyter
-pytest>=8.0
-pypdf>=5.0        # texto de los PDF del corpus (RAG)
-scikit-learn>=1.4 # solo para la prueba de cordura (python -m src.train --sklearn)
-openai>=1.40      # cliente de APIs compatibles con OpenAI (Groq, NVIDIA NIM, Ollama)
-python-dotenv>=1.0
-streamlit>=1.35
-faiss-cpu>=1.8     # índice vectorial del RAG
-fastembed>=0.4     # embeddings locales (ONNX, sin PyTorch)
-pyyaml>=6.0        # eval/preguntas.yaml
-reportlab>=4.0     # solo para scripts/generar_informe.py (informe.pdf)

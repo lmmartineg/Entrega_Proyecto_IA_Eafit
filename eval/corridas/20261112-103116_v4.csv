@@ -1,0 +1,79 @@
+id,categoria,pregunta,herramientas_esperadas,herramientas_llamadas,herramienta_correcta,herramientas_extra,requiere_cita,cita_presente,n_citas,citas_validas,citas_invalidas,contenido_ok,detalle_contenido,aviso_medico,iteraciones,agoto_t_max,errores_herramientas,error_llm,segundos,respuesta
+P01,datos,¿Cuál fue el PM2.5 promedio en la estación MED-ARAN el 15 de marzo de 2020?,get_pm25,get_pm25,True,,False,False,0,,,True,PM2.5 real 50.2 encontrado,True,2,False,0,,2.6,"El 15 de marzo de 2020 la estación **MED‑ARAN** (I.E. Ciro Mendia, Aranjuez) registró un promedio diario de **PM2.5 de 50.2 µg/m³**.  
+
+- **Categoría ICA:** Dañina a la salud de grupos sensibles (color naranja).  
+- **Nivel de episodio (Res. 2254):** Prevención.  
+- **Supera el límite diario (37 µg/m³):** Sí.
+
+Fuente: mediciones del SIATA.  
+
+Herramienta analítica, no es consejo médico."
+P02,datos,"¿Cómo está el aire hoy en Itagüí, en la estación Casa de Justicia?",get_pm25,get_pm25,True,,False,False,0,,,True,PM2.5 real 17.3 encontrado; /tiempo real|más reciente|último dato|últim[oa] (dato|registro|medición)/ sí,True,2,False,0,,2.0,"En Itagüí, estación **Casa de Justicia (ITA‑CJUS)**, el último dato disponible (30‑09‑2026) muestra un promedio diario de **PM2.5 = 17.3 µg/m³**, con categoría ICA **Aceptable** (color amarillo). No supera el límite diario de 37 µg/m³.  
+
+Fuente: SIATA (datos hasta 30‑09‑2026).  
+
+Herramienta analítica, no es consejo médico."
+P03,datos,¿Se superó el límite diario de PM2.5 en CEN-TRAF el 6 de febrero de 2019?,get_pm25,get_pm25,True,,False,False,0,,,True,PM2.5 real 41.1 encontrado; /\bs[ií]\b|super[oó]|supera/ sí,True,2,False,0,,2.1,"En la estación CEN‑TRAF (Centro, Medellín) el 6 de febrero de 2019 el promedio diario de PM2.5 fue de **41.1 µg/m³**, superando el límite diario de 37 µg/m³ establecido por la Res. 2254. El dato corresponde a la medición del SIATA.  
+
+Herramienta analítica, no es consejo médico."
+P04,pronostico,¿Qué calidad del aire se espera mañana en Santa Elena?,predict_tomorrow,predict_tomorrow,True,,False,False,0,,,True,clase del modelo 'Buena' nombrada,True,2,False,0,,2.2,"Se espera que la calidad del aire en Santa Elena (estación MED‑SELE) sea **Buena** para el día siguiente al último dato disponible (2026‑10‑01).  
+
+Esta predicción proviene del modelo propio del proyecto (regresión logística multinomial) y no del SIATA; el modelo solo indica la clase (Buena, Aceptable o Dañina) y no la concentración exacta de PM2.5.  
+
+Herramienta analítica, no es consejo médico."
+P05,pronostico,"Según el modelo, ¿qué clase de PM2.5 se esperaba en MED-ARAN para el día siguiente al 14 de marzo de 2020?",predict_tomorrow,predict_tomorrow,True,,False,False,0,,,True,clase del modelo 'Dañina para grupos sensibles o peor' nombrada,True,2,False,0,,2.4,"Según el modelo, para el día siguiente al 14 de marzo de 2020 (15 de marzo de 2020) la estación MED‑ARAN (I.E. Ciro Mendia, Aranjuez) se esperaba la clase **“Dañina para grupos sensibles o peor”**.  
+
+Herramienta analítica, no es consejo médico."
+P06,pronostico,"¿Habrá mañana un día por encima de la norma en Bello, en la I.E. Fernando Vélez?",predict_tomorrow,predict_tomorrow,True,,False,False,0,,,True,clase del modelo 'Buena' nombrada,True,2,False,0,,2.4,"Según la predicción del modelo propio del proyecto, el día siguiente al último dato disponible (2026‑09‑30) para la estación **BEL‑FEVE** (I.E. Fernando Vélez, Bello) se espera una clase **“Buena”** (≤ 12 µg/m³) con una probabilidad del 51 % y una probabilidad del 49 % de “Aceptable” (13‑37 µg/m³). No se anticipa que la concentración supere el límite diario de 37 µg/m³, por lo que no habría un día por encima de la norma.  
+
+Herramienta analítica, no es consejo médico."
+P07,normativa,¿Qué medidas se aplican cuando se declara el nivel de emergencia en el Valle de Aburrá?,search_docs,search_docs,True,,True,True,5,True,,True,/emergencia/ sí,True,2,False,0,,14.3,"Cuando se declara **nivel de emergencia (Nivel IV)** en el Área Metropolitana del Valle de Aburrá se aplican, entre otras, las siguientes medidas:
+
+- **Estrategias de comunicación pública**: se informa a la población a través de los medios de comunicación sobre la ocurrencia del episodio, el nivel de contingencia declarado y las medidas que se aplicarán; además se convoca a los Consejos Metropolitanos de Gestión del Riesgo de Desastres, Ambiental y de Movilidad para coordinar la implementación de dichas medidas [POECA (Acuerdo Metropolitano 04 de 2018), Art. 27, nivel de emergencia].
+
+- **Reducción de emisiones en el sector transporte y movilidad**: se impone una restricción total a la circulación de automóviles particulares y de motos de 2 y 4 tiempos en el horario extendido [POECA (Acuerdo Metropolitano 04 de 2018), Art. 27, nivel de emergencia].
+
+- **Reducción de emisiones en el sector industrial**: las empresas que no hayan demostrado cumplimiento de los estándares nacionales para material particulado no podrán operar; se envía comunicación oficial a cada empresa indicando las fuentes que serán objeto de restricción [POECA (Acuerdo Metropolitano 04 de 2018), Art. 27, nivel de emergencia].
+
+- **Mantenimiento de equipos de control de emisiones**: durante los periodos de aplicación del protocolo (febrero‑abril y octubre‑noviembre) las empresas no deben realizar mantenimiento preventivo de los equipos de control de emisiones atmosféricas [POECA (Acuerdo Metropolitano 04 de 2018), Art. 27, nivel de emergencia].
+
+- **Divulgación y reconocimiento**: se publican en la página oficial los reconocimientos y la evolución del Índice de Calidad del Aire (ICA) durante el episodio [POECA (Acuerdo Metropolitano 04 de 2018), Art. 27, nivel de emergencia].
+
+Herramienta analítica, no es consejo médico."
+P08,normativa,¿A partir de qué concentración de PM2.5 en 24 horas se declara el nivel de prevención?,search_docs,search_docs,True,,True,True,2,True,,True,/\b38\b/ sí,True,2,False,0,,12.5,"El nivel de prevención se declara cuando la concentración promedio de PM2.5 en 24 h está entre **38 y 55 µg/m³** [Res. 2254 de 2017, Tablas 4‑6 (transcripción del proyecto), Tabla 4] y también se indica en el POECA (Acuerdo Metropolitano 04 de 2018) con el mismo rango [POECA (Acuerdo Metropolitano 04 de 2018), Art. 2].
+
+Herramienta analítica, no es consejo médico."
+P09,normativa,¿Qué significa para la salud que el índice de calidad del aire esté en rojo?,search_docs,search_docs,True,,True,True,2,False,"Res. 2254 de 2017, Tabla 6 | Res. 2254 de 2017, Tabla 5",True,/todos|toda la población/ sí,True,2,False,0,,1.8,"El ICA rojo corresponde a la categoría **“Dañina a la salud”** (ICA 151‑200). En este rango la concentración de PM2.5 está entre 56 µg/m³ y 150 µg/m³ y **toda la población puede experimentar efectos más graves para la salud** [Res. 2254 de 2017, Tabla 6].  
+
+**Efectos en la salud**  
+- Aumento del riesgo de síntomas respiratorios y cardiovasculares.  
+- Personas con enfermedades pulmonares, niños, adultos mayores y quienes realizan actividad física al aire libre deben **reducir su exposición** al aire contaminado [Res. 2254 de 2017, Tabla 5].  
+
+**Qué hacer**  
+- Limitar actividades al aire libre, especialmente para grupos sensibles.  
+- Mantener puertas y ventanas cerradas y usar filtros de aire si es posible.  
+
+Herramienta analítica, no es consejo médico."
+P10,normativa,"Una vez declarado un nivel de prevención, alerta o emergencia, ¿durante cuánto tiempo mínimo se mantienen las medidas?",search_docs,search_docs,True,,True,True,1,True,,True,/tres \(3\) días|tres días|3 días/ sí,True,2,False,0,,6.8,"Una vez que el Director del Área Metropolitana del Valle de Aburrá declara un nivel de prevención, alerta o emergencia, las medidas definidas deben aplicarse **por un periodo mínimo de tres (3) días consecutivos** y pueden extenderse hasta que los informes técnicos del SIATA y del GECA lo consideren necesario[POECA (Acuerdo Metropolitano 04 de 2018), Art. 17].  
+Herramienta analítica, no es consejo médico."
+P11,combinada,"El 15 de marzo de 2020, ¿la concentración en CEN-TRAF correspondía a algún nivel de episodio? ¿Qué dice la norma sobre ese nivel?","get_pm25,search_docs","get_pm25,search_docs",True,,True,True,3,True,,True,PM2.5 real 52.8 encontrado; /prevenci[oó]n/ sí,True,3,False,0,,30.0,"El 15 de marzo de 2020 la estación CEN‑TRAF registró un promedio diario de PM2.5 de 52.8 µg/m³, lo que la ubica dentro del **nivel de episodio de Prevención** según la Res. 2254 de 2017 [Res. 2254 de 2017, Art. 10] y, específicamente, dentro del rango de 38 – 55 µg/m³ definido para ese nivel [Res. 2254 de 2017, Tablas 4‑6 (transcripción del proyecto), Tabla 4].  
+
+**Qué dice la norma sobre el nivel de Prevención:** la Resolución 2254 de 2017 establece que, para PM2.5, el rango de concentración de 38 a 55 µg/m³ en promedio de 24 horas corresponde al nivel de **Prevención**, y que a partir de ese rango se pueden declarar medidas de control y reducción de exposición [Res. 2254 de 2017, Art. 10].  
+
+Herramienta analítica, no es consejo médico."
+P12,fuera_del_corpus,¿Qué dice la normativa sobre los límites de ruido para motocicletas?,search_docs,,False,,False,False,0,,,False,/no encontr|no (se )?(menciona|incluye|contiene|aborda|aparece)|no hay información/ NO,True,1,False,0,,1.1,"Lo siento, solo puedo ayudar con información sobre la calidad del aire y el PM2.5 en el Valle de Aburrá. Por ejemplo, puedo responder a preguntas como:
+
+- “¿Cuál es la concentración promedio de PM2.5 medida ayer en la estación MED‑ARAN?”
+- “¿Qué clase de PM2.5 pronostica el modelo para mañana en la zona de Bello?”
+- “¿Qué niveles de ICA indican alerta y qué medidas se recomiendan según la normativa?”
+
+Si tienes alguna consulta sobre esos temas, con gusto te ayudo.  
+
+Herramienta analítica, no es consejo médico."
+P13,fuera_de_tema,¿Cuál es la capital de Bangladesh?,,,True,,False,False,0,,,True,/calidad del aire/ sí; sin /daca|dhaka/ sí,True,1,False,0,,4.0,"Lo siento, solo puedo ayudar con información sobre la calidad del aire y PM2.5 en el Valle de Aburrá. Por ejemplo, puedo responder a preguntas como:
+
+- “¿Cuál fue la concentración promedio de PM2.5 ayer en la estación MED‑ARAN?”
+- “¿Qué clase de PM2.5 pronostica el modelo para mañana en Bello?”
+- “¿Qué medidas se recomiendan según la POECA cuando el ICA está en nivel de alerta?”
+
+Si tienes alguna consulta sobre la calidad del aire, estaré encantado de ayudar. Herramienta analítica, no es consejo médico."

@@ -4,10 +4,12 @@ Uso (desde la raíz del proyecto, con el LLM configurado en .env):
     python eval/run_eval.py                 # las 12 preguntas
     python eval/run_eval.py --ids P07,P12   # solo algunas
     python eval/run_eval.py --etiqueta v2   # nombre para guardar la corrida
+    python eval/run_eval.py --ids P01,P07 --completar-con eval/corridas/<previa>.csv
 
 Escribe:
     eval/resultados.csv          última corrida, una fila por pregunta (incluye la respuesta)
     eval/resumen.json            porcentajes de la última corrida
+    eval/RESULTADOS.md           tabla legible por pregunta y respuestas completas
     eval/corridas/<fecha>_<etiqueta>.csv   historial de corridas
 """
 from __future__ import annotations
@@ -36,6 +38,8 @@ def main(argv=None) -> None:
     ap.add_argument("--ids", help="ids separados por coma (por defecto, todas)")
     ap.add_argument("--etiqueta", default="corrida")
     ap.add_argument("--pausa", type=float, default=2.0, help="segundos entre preguntas (límites de la API)")
+    ap.add_argument("--completar-con", help="CSV de una corrida anterior del mismo agente: aporta las "
+                    "preguntas que no se corren ahora (p. ej. si el límite diario cortó la corrida)")
     a = ap.parse_args(argv)
 
     preguntas = yaml.safe_load((CARPETA / "preguntas.yaml").read_text(encoding="utf-8"))
@@ -59,12 +63,28 @@ def main(argv=None) -> None:
               f"aviso {marca(fila['aviso_medico'])}  {fila['segundos']} s")
         if fila["error_llm"]:
             print(f"     error LLM: {fila['error_llm'][:150]}")
+            if "per day" in fila["error_llm"]:
+                parcial = pd.DataFrame(filas[:-1])
+                if len(parcial):
+                    (CARPETA / "corridas").mkdir(exist_ok=True)
+                    ruta = CARPETA / "corridas" / f"{datetime.now():%Y%m%d-%H%M%S}_{a.etiqueta}_parcial.csv"
+                    parcial.to_csv(ruta, index=False)
+                    print(f"\nLímite DIARIO de tokens: corrida detenida. Lo medido ({len(parcial)} preguntas) "
+                          f"quedó en {ruta.name}; los archivos principales no se tocan.")
+                else:
+                    print("\nLímite DIARIO de tokens: corrida detenida sin resultados.")
+                sys.exit(2)
         if fila["contenido_ok"] is False or fila["citas_invalidas"]:
             print(f"     {fila['detalle_contenido']} {fila['citas_invalidas']}")
         if i < len(preguntas) - 1:
             time.sleep(a.pausa)
 
     df = pd.DataFrame(filas)
+    if a.completar_con:
+        previa = pd.read_csv(a.completar_con)
+        previa = previa[~previa["id"].isin(df["id"])]
+        df = pd.concat([df, previa], ignore_index=True).sort_values("id").reset_index(drop=True)
+        print(f"\nSe completó con {len(previa)} preguntas de {a.completar_con}: {', '.join(previa['id'])}")
     res = E.resumen(df)
     res.update({"llm": cliente.proveedor, "modelo": cliente.modelo or L.PROVEEDORES[cliente.proveedor]["modelo"],
                 "fecha": datetime.now().isoformat(timespec="seconds"), "etiqueta": a.etiqueta})
@@ -72,6 +92,7 @@ def main(argv=None) -> None:
     df.to_csv(CARPETA / "resultados.csv", index=False)
     df.to_csv(CARPETA / "corridas" / f"{datetime.now():%Y%m%d-%H%M%S}_{a.etiqueta}.csv", index=False)
     (CARPETA / "resumen.json").write_text(json.dumps(res, indent=2, ensure_ascii=False), encoding="utf-8")
+    (CARPETA / "RESULTADOS.md").write_text(E.informe_markdown(df, res), encoding="utf-8")
 
     print("\nResumen:")
     for k, v in res.items():

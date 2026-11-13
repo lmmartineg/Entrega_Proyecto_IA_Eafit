@@ -10,7 +10,8 @@ https://normas.cra.gov.co/gestor/docs/resolucion_minambienteds_2254_2017.htm
 
 En la página de la CRA las tablas son imágenes (graficas/..._obj_5.gif = Tabla 4,
 obj_6.gif = Tabla 5, obj_7.gif = Tabla 6). Se transcribieron de esas imágenes
-el 6 nov 2026. Conviene cotejarlas con el PDF del Diario Oficial 50.415.
+el 6 nov 2026 y se cotejaron el 12 nov 2026 contra la compilación de la Alcaldía
+de Bogotá (SISJUR, Norma1.jsp?i=82634): coinciden. No se cotejó el PDF del Diario Oficial.
 
 Bordes: la tabla usa enteros (0-12, 13-37, ...). Un valor en el hueco, como
 12,4, se asigna al rango superior. Así el límite superior de cada rango es

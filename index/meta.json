@@ -5,11 +5,10 @@
   "max_palabras": 110,
   "solape": 30,
   "fragmentos_por_documento": {
-    "Res. 2254 de 2017": 56,
+    "Res. 2254 de 2017": 61,
     "POECA (Acuerdo Metropolitano 04 de 2018)": 146,
     "PIGECA (Acuerdo Metropolitano 16 de 2017)": 368,
-    "Informe SIATA enero 2025": 24,
-    "Res. 2254 de 2017, Tablas 4-6 (transcripción del proyecto)": 5
+    "Informe SIATA enero 2025": 24
   },
-  "construido": "2026-11-06T16:47:18"
+  "construido": "2026-11-12T10:32:48"
 }

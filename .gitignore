@@ -11,5 +11,3 @@ data/processed/pm25_horario.csv
 .claude/
 # Modelos descargados (embeddings del RAG)
 .cache/
-# Vista previa del informe (se regenera con scripts/generar_informe.py --previsualizar)
-docs/previa/

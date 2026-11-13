@@ -1,14 +1,14 @@
 {
-  "n_preguntas": 12,
-  "herramienta_correcta_pct": 100.0,
+  "n_preguntas": 15,
+  "herramienta_correcta_pct": 93.3,
   "cita_presente_pct (preguntas que la exigen)": 100.0,
   "citas_validas_pct (respuestas con citas)": 100.0,
-  "contenido_ok_pct (preguntas con comprobación)": 100.0,
+  "contenido_ok_pct (preguntas con comprobación)": 93.3,
   "aviso_medico_pct": 100.0,
   "errores_llm": 0,
-  "segundos_mediana": 13.75,
+  "segundos_mediana": 6.5,
   "llm": "groq",
   "modelo": "openai/gpt-oss-120b",
-  "fecha": "2026-11-06T17:28:44",
-  "etiqueta": "v3"
+  "fecha": "2026-11-12T22:11:48",
+  "etiqueta": "v6"
 }

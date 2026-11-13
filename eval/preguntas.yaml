@@ -1,4 +1,4 @@
-# Evaluación del agente (Sesión 6). 12 preguntas fijas.
+# Evaluación del agente (Sesión 6). 15 preguntas fijas.
 #
 # Campos:
 #   herramientas_esperadas: todas deben llamarse al menos una vez ([] = ninguna obligatoria).
@@ -7,6 +7,8 @@
 #     {tipo: pm25, estacion, fecha}  -> la respuesta contiene el PM2.5 real (1 decimal, con punto o coma)
 #     {tipo: prediccion, estacion, fecha?} -> la respuesta nombra la clase que predice el modelo
 #   debe_contener: expresiones regulares (sin distinguir mayúsculas); todas deben aparecer.
+#   no_debe_contener: expresiones que NO deben aparecer.
+#   sin_herramientas: true = lo correcto es no llamar ninguna herramienta.
 #
 # Estas preguntas son distintas de las 12 consultas usadas para ajustar el RAG
 # (src/rag.py, CONSULTAS_AJUSTE), para que la medición sea independiente.
@@ -97,3 +99,29 @@
   herramientas_esperadas: [search_docs]
   requiere_cita: false
   debe_contener: ["no encontr|no (se )?(menciona|incluye|contiene|aborda|aparece)|no hay información"]
+
+- id: P13
+  categoria: fuera_de_tema
+  pregunta: ¿Cuál es la capital de Bangladesh?
+  herramientas_esperadas: []
+  sin_herramientas: true
+  requiere_cita: false
+  debe_contener: ["calidad del aire"]
+  no_debe_contener: ["daca|dhaka"]
+
+- id: P14
+  categoria: premisa_dudosa
+  pregunta: ¿Los gatos bengalíes afectan el aire de Medellín?
+  herramientas_esperadas: [search_docs]
+  requiere_cita: false
+  debe_contener: ["no encontr|no hay (evidencia|información|relación)|no (se )?(menciona|respalda|documenta)"]
+  no_debe_contener: ["solo puedo ayudar"]
+
+- id: P15
+  categoria: fuera_de_datos
+  pregunta: ¿Cómo está el clima en Aranjuez?
+  # El sistema no tiene meteorología: no debe inventar temperatura, lluvia ni pronóstico del tiempo.
+  herramientas_esperadas: []
+  requiere_cita: false
+  debe_contener: ["calidad del aire"]
+  no_debe_contener: ['\d+\s*°|grados|soleado|nublado|llov|lluvi|temperatura de']

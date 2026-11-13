@@ -103,3 +103,44 @@ def test_resumen():
     assert r["cita_presente_pct (preguntas que la exigen)"] == 100.0
     assert r["citas_validas_pct (respuestas con citas)"] == 0.0
     assert r["contenido_ok_pct (preguntas con comprobación)"] == 100.0
+
+
+def test_informe_markdown_muestra_cada_pregunta():
+    filas = pd.DataFrame([
+        {"id": "P01", "categoria": "datos", "pregunta": "¿PM2.5?", "herramientas_esperadas": "get_pm25",
+         "herramientas_llamadas": "get_pm25", "herramienta_correcta": True, "requiere_cita": False,
+         "cita_presente": False, "citas_validas": None, "contenido_ok": True,
+         "detalle_contenido": "PM2.5 real 17.0 encontrado", "respuesta": "17 µg/m³\nsegunda línea"},
+        {"id": "P07", "categoria": "normativa", "pregunta": "¿Medidas?", "herramientas_esperadas": "search_docs",
+         "herramientas_llamadas": "", "herramienta_correcta": False, "requiere_cita": True,
+         "cita_presente": False, "citas_validas": None, "contenido_ok": False,
+         "detalle_contenido": "", "respuesta": "No sé"},
+    ])
+    md = E.informe_markdown(filas, {"etiqueta": "vX", "fecha": "2026-11-12T10:00", "llm": "groq",
+                                    "modelo": "m", "herramienta_correcta_pct": 50.0})
+    assert "| P01 | datos | ¿PM2.5? | `get_pm25` | `get_pm25` | ✅ | no se exige |" in md
+    assert "| P07 |" in md and "`ninguna`" in md and "❌" in md
+    assert "<details><summary><b>P01</b>" in md and "> segunda línea" in md
+    assert "| Herramienta correcta | 50 % |" in md
+
+
+def test_pregunta_fuera_de_tema(h):
+    item = {"id": "P13", "pregunta": "¿Capital de Bangladesh?", "herramientas_esperadas": [],
+            "sin_herramientas": True, "requiere_cita": False,
+            "debe_contener": ["calidad del aire"], "no_debe_contener": ["daca|dhaka"]}
+    bien = E.evaluar_pregunta(item, h, LLMGuion([L.MensajeLLM("Solo ayudo con calidad del aire en el valle.")]))
+    assert bien["herramienta_correcta"] and bien["contenido_ok"]
+    responde = E.evaluar_pregunta(item, h, LLMGuion([L.MensajeLLM("Es Daca. Sobre calidad del aire no sé.")]))
+    assert responde["contenido_ok"] is False and "NO (aparece)" in responde["detalle_contenido"]
+    usa = E.evaluar_pregunta(item, h, LLMGuion([pide("search_docs", {"consulta": "Bangladesh"}),
+                                                L.MensajeLLM("Solo calidad del aire.")]))
+    assert usa["herramienta_correcta"] is False
+
+
+def test_citas_que_entregan_las_herramientas_son_validas():
+    class P:
+        def __init__(self, resultado):
+            self.herramienta, self.resultado = "get_pm25", resultado
+    pasos = [P({"norma": "Res. 2254 de 2017 (límite diario: Art. 2; ICA: Tabla 6; niveles: Tabla 4)"}), P(None)]
+    c = E.citas_de_herramientas(pasos)
+    assert c == {"[Res. 2254 de 2017, Art. 2]", "[Res. 2254 de 2017, Tabla 6]", "[Res. 2254 de 2017, Tabla 4]"}
